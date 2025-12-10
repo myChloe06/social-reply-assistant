@@ -1,0 +1,7 @@
+# 忽略版本文件夹
+meta-reply-assistant*/
+
+# 临时文件
+NUL
+*.log
+.DS_Store
