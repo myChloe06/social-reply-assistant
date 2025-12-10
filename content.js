@@ -18,6 +18,105 @@
 
   // 对话历史（用于修改回复）
   let conversationHistory = [];
+  
+  // 当前请求的 AbortController
+  let currentAbortController = null;
+
+  // ==================== 日志系统 ====================
+  const Logger = {
+    logs: [],
+    maxLogs: 200,
+
+    add(level, message, data = null) {
+      const logEntry = {
+        time: new Date().toISOString(),
+        level,
+        message,
+        data
+      };
+      this.logs.push(logEntry);
+      if (this.logs.length > this.maxLogs) {
+        this.logs.shift();
+      }
+      console.log(`[${level}] ${message}`, data || '');
+      this.save();
+    },
+
+    info(message, data) { this.add('INFO', message, data); },
+    error(message, data) { this.add('ERROR', message, data); },
+    warn(message, data) { this.add('WARN', message, data); },
+
+    save() {
+      try {
+        chrome.storage.local.set({ logs: this.logs });
+      } catch (e) {
+        console.error('保存日志失败', e);
+      }
+    },
+
+    async load() {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(['logs'], (result) => {
+          if (result.logs) {
+            this.logs = result.logs;
+          }
+          resolve(this.logs);
+        });
+      });
+    },
+
+    clear() {
+      this.logs = [];
+      this.save();
+    },
+
+    export() {
+      return this.logs.map(log => 
+        `[${log.time}] [${log.level}] ${log.message}${log.data ? '\n  Data: ' + JSON.stringify(log.data) : ''}`
+      ).join('\n');
+    }
+  };
+
+  // ==================== 进度管理 ====================
+  const Progress = {
+    startTime: null,
+    timerInterval: null,
+    statusEl: null,
+
+    start(statusEl) {
+      this.statusEl = statusEl;
+      this.startTime = Date.now();
+      this.update('连接中...');
+      
+      this.timerInterval = setInterval(() => {
+        const elapsed = ((Date.now() - this.startTime) / 1000).toFixed(1);
+        const currentStatus = this.statusEl.querySelector('.progress-text')?.textContent?.split(' (')[0] || '处理中';
+        this.update(`${currentStatus} (${elapsed}s)`);
+      }, 100);
+    },
+
+    update(status) {
+      if (this.statusEl) {
+        const elapsed = this.startTime ? ((Date.now() - this.startTime) / 1000).toFixed(1) : '0.0';
+        this.statusEl.innerHTML = `
+          <div class="progress-status">
+            <div class="loading-spinner"></div>
+            <span class="progress-text">${status}</span>
+          </div>
+        `;
+      }
+    },
+
+    stop() {
+      if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+      }
+      const elapsed = this.startTime ? ((Date.now() - this.startTime) / 1000).toFixed(1) : '0';
+      this.startTime = null;
+      return elapsed;
+    }
+  };
 
   // 创建主面板
   function createPanel() {
@@ -27,6 +126,7 @@
       <div class="panel-header">
         <span class="header-title">💬 评论回复助手</span>
         <div class="header-actions">
+          <button class="header-btn log-btn" title="查看日志">📋</button>
           <button class="header-btn settings-btn" title="设置">⚙️</button>
           <button class="collapse-btn" title="收起">−</button>
         </div>
@@ -46,6 +146,7 @@
         </div>
         <div class="button-group">
           <button class="btn btn-primary" id="generate-btn">生成回复</button>
+          <button class="btn btn-danger" id="abort-btn" style="display: none;">停止生成</button>
           <button class="btn btn-secondary" id="copy-btn" style="display: none;">复制回复</button>
         </div>
         <div class="button-group" id="revision-buttons" style="display: none;">
@@ -107,6 +208,33 @@
     return overlay;
   }
 
+  // 创建日志面板
+  function createLogPanel() {
+    const overlay = document.createElement('div');
+    overlay.className = 'settings-overlay';
+    overlay.id = 'log-overlay';
+    overlay.style.display = 'none';
+    overlay.innerHTML = `
+      <div class="settings-panel log-panel">
+        <div class="settings-header">
+          <span class="settings-title">📋 运行日志</span>
+          <button class="settings-close" id="log-close">×</button>
+        </div>
+        <div class="settings-body">
+          <div class="log-content" id="log-content"></div>
+        </div>
+        <div class="settings-footer">
+          <button class="btn btn-danger" id="log-clear">清空日志</button>
+          <div style="flex: 1;"></div>
+          <button class="btn btn-secondary" id="log-export">导出日志</button>
+          <button class="btn btn-primary" id="log-close-btn">关闭</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
   // 显示提示消息
   function showToast(message, duration = 2000) {
     const existing = document.querySelector('.toast');
@@ -144,17 +272,19 @@
 
   // 检测语言是否为英语
   function isEnglish(text) {
-    // 简单检测：如果大部分字符是英文字母则认为是英语
     const englishChars = text.match(/[a-zA-Z]/g) || [];
     const totalChars = text.replace(/\s/g, '').length;
     return totalChars > 0 && (englishChars.length / totalChars) > 0.7;
   }
 
-  // 调用 AI API
-  async function callAI(config, comment, isRevision = false, revisionNote = '') {
+  // 调用 AI API（支持中止）
+  async function callAI(config, comment, isRevision = false, revisionNote = '', progressCallback) {
     const isEng = isEnglish(comment);
     
-    // 组合系统提示词：角色提示词 + 知识库
+    // 创建新的 AbortController
+    currentAbortController = new AbortController();
+    
+    // 组合系统提示词
     let fullSystemPrompt = config.systemPrompt;
     if (config.knowledgeBase && config.knowledgeBase.trim()) {
       fullSystemPrompt += `\n\n---\n【产品知识库】\n${config.knowledgeBase}`;
@@ -165,14 +295,12 @@
     ];
 
     if (isRevision && conversationHistory.length > 0) {
-      // 修改模式：带上之前的对话历史
       messages = messages.concat(conversationHistory);
       messages.push({
         role: 'user',
         content: `请根据以下修改意见调整回复：\n\n修改意见：${revisionNote}\n\n请保持之前的输出格式。`
       });
     } else {
-      // 首次生成
       let userPrompt;
       if (isEng) {
         userPrompt = `请根据以下评论生成回复：
@@ -193,6 +321,15 @@
       messages.push({ role: 'user', content: userPrompt });
     }
 
+    Logger.info('发送 API 请求', { 
+      url: config.apiUrl, 
+      model: config.modelName,
+      commentLength: comment.length,
+      isRevision 
+    });
+
+    if (progressCallback) progressCallback('请求发送中...');
+
     const response = await fetch(config.apiUrl, {
       method: 'POST',
       headers: {
@@ -203,26 +340,35 @@
         model: config.modelName,
         messages: messages,
         temperature: 0.7
-      })
+      }),
+      signal: currentAbortController.signal
     });
+
+    if (progressCallback) progressCallback('等待响应...');
 
     if (!response.ok) {
       const error = await response.text();
+      Logger.error('API 请求失败', { status: response.status, error });
       throw new Error(`API 请求失败: ${response.status} - ${error}`);
     }
+
+    if (progressCallback) progressCallback('解析响应...');
 
     const data = await response.json();
     const assistantMessage = data.choices[0].message.content;
 
+    Logger.info('API 响应成功', { 
+      responseLength: assistantMessage.length,
+      usage: data.usage 
+    });
+
     // 更新对话历史
     if (!isRevision) {
-      // 首次生成，重置历史
       conversationHistory = [
-        messages[messages.length - 1], // user message
+        messages[messages.length - 1],
         { role: 'assistant', content: assistantMessage }
       ];
     } else {
-      // 修改模式，追加历史
       conversationHistory.push(
         { role: 'user', content: `请根据以下修改意见调整回复：\n\n修改意见：${revisionNote}\n\n请保持之前的输出格式。` },
         { role: 'assistant', content: assistantMessage }
@@ -233,6 +379,15 @@
       content: assistantMessage,
       isEnglish: isEng
     };
+  }
+
+  // 中止当前请求
+  function abortCurrentRequest() {
+    if (currentAbortController) {
+      currentAbortController.abort();
+      currentAbortController = null;
+      Logger.warn('用户中止了请求');
+    }
   }
 
   // 解析多语言回复
@@ -251,7 +406,6 @@
     if (replyMatch) result.reply = replyMatch[1].trim();
     if (replyTransMatch) result.replyTranslation = replyTransMatch[1].trim();
 
-    // 如果解析失败，整个内容作为回复
     if (!result.reply) {
       result.reply = content;
     }
@@ -301,19 +455,47 @@
     }
   }
 
+  // 渲染日志内容
+  function renderLogs(logContent) {
+    const logs = Logger.logs;
+    if (logs.length === 0) {
+      logContent.innerHTML = '<div class="log-empty">暂无日志</div>';
+      return;
+    }
+
+    logContent.innerHTML = logs.slice().reverse().map(log => {
+      const levelClass = log.level.toLowerCase();
+      const time = new Date(log.time).toLocaleString();
+      return `
+        <div class="log-entry log-${levelClass}">
+          <span class="log-time">${time}</span>
+          <span class="log-level">[${log.level}]</span>
+          <span class="log-message">${log.message}</span>
+          ${log.data ? `<pre class="log-data">${JSON.stringify(log.data, null, 2)}</pre>` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
   // 主初始化函数
   async function init() {
+    Logger.info('插件初始化');
+    await Logger.load();
+
     // 创建面板
     const panel = createPanel();
     const settingsOverlay = createSettingsPanel();
+    const logOverlay = createLogPanel();
 
     // 获取元素
     const selectedCommentEl = document.getElementById('selected-comment');
     const resultSection = document.getElementById('result-section');
     const resultArea = document.getElementById('result-area');
     const generateBtn = document.getElementById('generate-btn');
+    const abortBtn = document.getElementById('abort-btn');
     const copyBtn = document.getElementById('copy-btn');
     const settingsBtn = panel.querySelector('.settings-btn');
+    const logBtn = panel.querySelector('.log-btn');
     const collapseBtn = panel.querySelector('.collapse-btn');
 
     // 修改意见相关元素
@@ -333,8 +515,16 @@
     const settingPrompt = document.getElementById('setting-prompt');
     const settingKnowledge = document.getElementById('setting-knowledge');
 
+    // 日志面板元素
+    const logClose = document.getElementById('log-close');
+    const logCloseBtn = document.getElementById('log-close-btn');
+    const logClear = document.getElementById('log-clear');
+    const logExport = document.getElementById('log-export');
+    const logContent = document.getElementById('log-content');
+
     let currentComment = '';
     let currentIsEnglish = true;
+    let isGenerating = false;
 
     // 监听文本选择
     document.addEventListener('mouseup', () => {
@@ -343,6 +533,7 @@
         currentComment = selection;
         selectedCommentEl.textContent = selection;
         selectedCommentEl.classList.remove('empty');
+        Logger.info('选中评论', { length: selection.length });
       }
     });
 
@@ -390,6 +581,7 @@
         systemPrompt: settingPrompt.value.trim(),
         knowledgeBase: settingKnowledge.value.trim()
       });
+      Logger.info('设置已保存');
       showToast('设置已保存');
       closeSettings();
     });
@@ -400,15 +592,53 @@
         await new Promise((resolve) => {
           chrome.storage.local.clear(resolve);
         });
-        // 清空表单
         settingApiUrl.value = '';
         settingApiKey.value = '';
         settingModel.value = DEFAULT_CONFIG.modelName;
         settingPrompt.value = DEFAULT_CONFIG.systemPrompt;
         settingKnowledge.value = '';
+        Logger.info('所有数据已清除');
         showToast('所有数据已清除');
         closeSettings();
       }
+    });
+
+    // 打开日志
+    logBtn.addEventListener('click', () => {
+      renderLogs(logContent);
+      logOverlay.style.display = 'flex';
+    });
+
+    // 关闭日志
+    const closeLog = () => {
+      logOverlay.style.display = 'none';
+    };
+    logClose.addEventListener('click', closeLog);
+    logCloseBtn.addEventListener('click', closeLog);
+    logOverlay.addEventListener('click', (e) => {
+      if (e.target === logOverlay) closeLog();
+    });
+
+    // 清空日志
+    logClear.addEventListener('click', () => {
+      if (confirm('确定要清空所有日志吗？')) {
+        Logger.clear();
+        renderLogs(logContent);
+        showToast('日志已清空');
+      }
+    });
+
+    // 导出日志
+    logExport.addEventListener('click', () => {
+      const logText = Logger.export();
+      const blob = new Blob([logText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `meta-reply-log-${new Date().toISOString().slice(0,10)}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('日志已导出');
     });
 
     // 生成回复
@@ -425,30 +655,51 @@
         return;
       }
 
-      // 显示加载状态
-      generateBtn.disabled = true;
-      generateBtn.textContent = '生成中...';
+      isGenerating = true;
+      generateBtn.style.display = 'none';
+      abortBtn.style.display = 'block';
       resultSection.style.display = 'block';
-      resultArea.innerHTML = `<div class="loading"><div class="loading-spinner"></div><span>正在生成回复...</span></div>`;
       copyBtn.style.display = 'none';
       revisionSection.style.display = 'none';
       revisionButtons.style.display = 'none';
 
+      Progress.start(resultArea);
+
       try {
-        const aiResponse = await callAI(config, currentComment, false);
+        const aiResponse = await callAI(config, currentComment, false, '', (status) => {
+          Progress.update(status);
+        });
+        const elapsed = Progress.stop();
         currentIsEnglish = aiResponse.isEnglish;
         renderResult(resultArea, aiResponse);
         copyBtn.style.display = 'block';
-        // 显示修改意见区域
         revisionSection.style.display = 'block';
         revisionButtons.style.display = 'flex';
         revisionInput.value = '';
+        Logger.info('生成完成', { elapsed: elapsed + 's' });
       } catch (error) {
-        resultArea.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
+        Progress.stop();
+        if (error.name === 'AbortError') {
+          resultArea.innerHTML = `<div class="error-message">⏹️ 已停止生成</div>`;
+        } else {
+          Logger.error('生成失败', { error: error.message });
+          resultArea.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
+        }
       } finally {
-        generateBtn.disabled = false;
-        generateBtn.textContent = '生成回复';
+        isGenerating = false;
+        generateBtn.style.display = 'block';
+        abortBtn.style.display = 'none';
       }
+    });
+
+    // 中止生成
+    abortBtn.addEventListener('click', () => {
+      abortCurrentRequest();
+      Progress.stop();
+      isGenerating = false;
+      generateBtn.style.display = 'block';
+      abortBtn.style.display = 'none';
+      showToast('已停止生成');
     });
 
     // 根据意见修改回复
@@ -461,21 +712,33 @@
 
       const config = await loadConfig();
 
-      // 显示加载状态
+      isGenerating = true;
       reviseBtn.disabled = true;
       reviseBtn.textContent = '修改中...';
-      resultArea.innerHTML = `<div class="loading"><div class="loading-spinner"></div><span>正在根据意见修改...</span></div>`;
       copyBtn.style.display = 'none';
 
+      Progress.start(resultArea);
+
       try {
-        const aiResponse = await callAI(config, currentComment, true, revisionNote);
+        const aiResponse = await callAI(config, currentComment, true, revisionNote, (status) => {
+          Progress.update(status);
+        });
+        const elapsed = Progress.stop();
         renderResult(resultArea, aiResponse);
         copyBtn.style.display = 'block';
         revisionInput.value = '';
+        Logger.info('修改完成', { elapsed: elapsed + 's' });
         showToast('回复已更新');
       } catch (error) {
-        resultArea.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
+        Progress.stop();
+        if (error.name === 'AbortError') {
+          resultArea.innerHTML = `<div class="error-message">⏹️ 已停止生成</div>`;
+        } else {
+          Logger.error('修改失败', { error: error.message });
+          resultArea.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
+        }
       } finally {
+        isGenerating = false;
         reviseBtn.disabled = false;
         reviseBtn.textContent = '根据意见修改';
       }
@@ -486,6 +749,7 @@
       const reply = getReplyContent(resultArea, currentIsEnglish);
       if (reply) {
         await navigator.clipboard.writeText(reply);
+        Logger.info('复制回复');
         showToast('已复制到剪贴板');
         copyBtn.textContent = '已复制 ✓';
         copyBtn.classList.add('btn-success');
@@ -495,6 +759,8 @@
         }, 2000);
       }
     });
+
+    Logger.info('插件初始化完成');
   }
 
   // 启动
