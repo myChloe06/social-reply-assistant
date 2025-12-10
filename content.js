@@ -3,7 +3,7 @@
 (function() {
   'use strict';
 
-  const VERSION = '5.1';
+  const VERSION = '5.1.1';
 
   // 默认配置
   const DEFAULT_CONFIG = {
@@ -346,8 +346,6 @@ Response requirements:
 
   // 调用 AI API（支持中止和故障切换）
   async function callAI(config, comment, isRevision = false, revisionNote = '', progressCallback, startApiIndex = null) {
-    const langType = getLanguageType(comment);
-    
     if (!config.apis || config.apis.length === 0) {
       throw new Error('Please add API configuration in settings');
     }
@@ -372,26 +370,21 @@ Response requirements:
         content: `Please revise the reply based on these notes:\n\nRevision notes: ${revisionNote}\n\nKeep the same output format as before.`
       });
     } else {
-      let userPrompt;
-      
-      if (langType === 'english' || langType === 'chinese') {
-        // English or Chinese: just generate reply directly
-        userPrompt = `Please generate a reply for this comment:
+      // Let AI detect language and decide output format
+      let userPrompt = `Please generate a reply for this comment.
 
 Comment: ${comment}
 
-Output only the reply, no explanations.`;
-      } else {
-        // Other languages: need translation
-        userPrompt = `Please generate a reply for this comment. Since the comment is not in English or Chinese, please output in this format:
-
-Comment: ${comment}
-
-Please output in this exact format (keep the labels):
+Instructions:
+1. First, detect the language of the comment
+2. If the comment is in English or Chinese (Simplified/Traditional): output ONLY the reply, nothing else
+3. If the comment is in ANY OTHER language (Spanish, German, French, Japanese, Korean, Arabic, etc.): output in this exact format:
 [Comment Translation] (translate the comment to Chinese)
 [Reply] (reply in the SAME language as the original comment)
-[Reply Translation] (translate the reply to Chinese)`;
-      }
+[Reply Translation] (translate the reply to Chinese)
+
+Important: For non-English/non-Chinese comments, you MUST use the three-part format with labels.`;
+      
       messages.push({ role: 'user', content: userPrompt });
     }
 
@@ -438,7 +431,6 @@ Please output in this exact format (keep the labels):
 
         return {
           content: assistantMessage,
-          languageType: langType,
           usedApi: api.name
         };
 
@@ -502,11 +494,17 @@ Please output in this exact format (keep the labels):
     const usedApiHtml = aiResponse.usedApi ? 
       `<div class="used-api-hint">Used: ${aiResponse.usedApi}</div>` : '';
 
-    // English or Chinese: show reply only
-    if (aiResponse.languageType === 'english' || aiResponse.languageType === 'chinese') {
+    // Check if response contains the three-part format
+    const hasTranslationFormat = aiResponse.content.includes('[Comment Translation]') || 
+                                  aiResponse.content.includes('[Reply]') ||
+                                  aiResponse.content.includes('【评论翻译】') ||
+                                  aiResponse.content.includes('【回复】');
+
+    if (!hasTranslationFormat) {
+      // Simple reply (English or Chinese comment)
       resultArea.innerHTML = `${usedApiHtml}<div class="section-box">${aiResponse.content}</div>`;
     } else {
-      // Other languages: show three parts
+      // Three-part format (other languages)
       const parsed = parseMultilingualResponse(aiResponse.content);
       resultArea.innerHTML = `
         ${usedApiHtml}
@@ -531,21 +529,20 @@ Please output in this exact format (keep the labels):
   }
 
   // 获取要复制的回复内容
-  function getReplyContent(resultArea, languageType) {
-    if (languageType === 'english' || languageType === 'chinese') {
-      const box = resultArea.querySelector('.section-box');
-      return box ? box.textContent : '';
-    } else {
-      const blocks = resultArea.querySelectorAll('.translation-block');
-      for (const block of blocks) {
-        const label = block.querySelector('.translation-label');
-        if (label && label.textContent.includes('Reply') && !label.textContent.includes('Translation')) {
-          const content = block.querySelector('.translation-content');
-          return content ? content.textContent : '';
-        }
+  function getReplyContent(resultArea) {
+    // First try to find the Reply block (for three-part format)
+    const blocks = resultArea.querySelectorAll('.translation-block');
+    for (const block of blocks) {
+      const label = block.querySelector('.translation-label');
+      if (label && label.textContent.includes('Reply') && !label.textContent.includes('Translation')) {
+        const content = block.querySelector('.translation-content');
+        return content ? content.textContent : '';
       }
-      return '';
     }
+    
+    // If no translation blocks, get the simple reply box
+    const box = resultArea.querySelector('.section-box');
+    return box ? box.textContent : '';
   }
 
   // 渲染日志内容
@@ -677,7 +674,6 @@ Please output in this exact format (keep the labels):
     const logContent = document.getElementById('log-content');
 
     let currentComment = '';
-    let currentLanguageType = 'english';
     let isGenerating = false;
     let tempApis = [];
 
@@ -886,7 +882,6 @@ Please output in this exact format (keep the labels):
           Progress.update(status);
         });
         const elapsed = Progress.success('Generated successfully');
-        currentLanguageType = aiResponse.languageType;
         
         // 延迟一下再显示结果，让用户看到成功提示
         setTimeout(() => {
@@ -971,7 +966,7 @@ Please output in this exact format (keep the labels):
 
     // 复制回复
     copyBtn.addEventListener('click', async () => {
-      const reply = getReplyContent(resultArea, currentLanguageType);
+      const reply = getReplyContent(resultArea);
       if (reply) {
         await navigator.clipboard.writeText(reply);
         Logger.info('Copied reply');
