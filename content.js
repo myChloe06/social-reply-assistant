@@ -3,7 +3,7 @@
 (function() {
   'use strict';
 
-  const VERSION = '5.2.0';
+  const VERSION = '5.2.1';
 
   // 预设平台列表
   const PRESET_PLATFORMS = [
@@ -264,7 +264,7 @@ Response requirements:
             <div id="platform-config-area" class="platform-config-area" style="display: none;">
               <div class="platform-config-header">
                 <span id="platform-config-title">Platform Settings</span>
-                <button class="btn-icon delete-platform-btn" id="delete-platform-btn" title="Delete this platform" style="display: none;">🗑️</button>
+                <button class="btn-delete-platform" id="delete-platform-btn" title="Delete this platform" style="display: none;">× Delete</button>
               </div>
               <div class="form-group">
                 <label class="form-label">System Prompt</label>

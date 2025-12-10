@@ -591,6 +591,23 @@
   opacity: 1;
 }
 
+/* 删除平台按钮 */
+.btn-delete-platform {
+  background: #ffebe9;
+  border: 1px solid #ff8080;
+  color: #d32f2f;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-delete-platform:hover {
+  background: #ffcdd2;
+  border-color: #d32f2f;
+}
+
 /* API 选择器 */
 .api-selector {
   display: flex;
