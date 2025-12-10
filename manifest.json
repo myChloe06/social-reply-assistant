@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Meta Business Suite 评论回复助手",
-  "version": "5.1.1",
+  "version": "5.0.0",
   "description": "AI 驱动的评论回复生成工具，支持多语言翻译",
   "permissions": [
     "storage",
