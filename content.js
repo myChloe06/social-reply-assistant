@@ -7,14 +7,13 @@
     apiUrl: '',
     apiKey: '',
     modelName: 'gpt-3.5-turbo',
-    systemPrompt: `你是一个专业的社交媒体客服助手。请根据用户的评论生成友好、专业的回复。
+    systemPrompt: `你是一个专业的社交媒体客服助手。
 
 回复要求：
 - 语气友好、真诚
-- 简洁明了，不要太长
-- 如果是好评，表示感谢
-- 如果是问题，提供帮助
-- 如果是投诉，表示歉意并提供解决方案`
+- 简洁明了，1-2句话
+- 好评→感谢，问题→帮助，投诉→道歉+解决方案`,
+    knowledgeBase: ''
   };
 
   // 对话历史（用于修改回复）
@@ -87,8 +86,13 @@
           </div>
           <div class="form-group">
             <label class="form-label">角色提示词</label>
-            <div class="form-hint">设置 AI 的回复风格、品牌信息、产品介绍等</div>
-            <textarea class="form-textarea" id="setting-prompt" placeholder="输入角色提示词..."></textarea>
+            <div class="form-hint">设置 AI 的角色、语气、回复规则等（基本不变的内容）</div>
+            <textarea class="form-textarea" id="setting-prompt" placeholder="例如：你是XX品牌客服，语气热情友好，回复简洁..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">知识库</label>
+            <div class="form-hint">产品信息、价格、常见问题等（经常更新的内容）</div>
+            <textarea class="form-textarea" id="setting-knowledge" placeholder="例如：产品A售价99元，适合6岁以上..."></textarea>
           </div>
         </div>
         <div class="settings-footer">
@@ -119,12 +123,13 @@
   // 加载配置
   async function loadConfig() {
     return new Promise((resolve) => {
-      chrome.storage.local.get(['apiUrl', 'apiKey', 'modelName', 'systemPrompt'], (result) => {
+      chrome.storage.local.get(['apiUrl', 'apiKey', 'modelName', 'systemPrompt', 'knowledgeBase'], (result) => {
         resolve({
           apiUrl: result.apiUrl || DEFAULT_CONFIG.apiUrl,
           apiKey: result.apiKey || DEFAULT_CONFIG.apiKey,
           modelName: result.modelName || DEFAULT_CONFIG.modelName,
-          systemPrompt: result.systemPrompt || DEFAULT_CONFIG.systemPrompt
+          systemPrompt: result.systemPrompt || DEFAULT_CONFIG.systemPrompt,
+          knowledgeBase: result.knowledgeBase || DEFAULT_CONFIG.knowledgeBase
         });
       });
     });
@@ -149,8 +154,14 @@
   async function callAI(config, comment, isRevision = false, revisionNote = '') {
     const isEng = isEnglish(comment);
     
+    // 组合系统提示词：角色提示词 + 知识库
+    let fullSystemPrompt = config.systemPrompt;
+    if (config.knowledgeBase && config.knowledgeBase.trim()) {
+      fullSystemPrompt += `\n\n---\n【产品知识库】\n${config.knowledgeBase}`;
+    }
+
     let messages = [
-      { role: 'system', content: config.systemPrompt }
+      { role: 'system', content: fullSystemPrompt }
     ];
 
     if (isRevision && conversationHistory.length > 0) {
@@ -320,6 +331,7 @@
     const settingApiKey = document.getElementById('setting-api-key');
     const settingModel = document.getElementById('setting-model');
     const settingPrompt = document.getElementById('setting-prompt');
+    const settingKnowledge = document.getElementById('setting-knowledge');
 
     let currentComment = '';
     let currentIsEnglish = true;
@@ -355,6 +367,7 @@
       settingApiKey.value = config.apiKey;
       settingModel.value = config.modelName;
       settingPrompt.value = config.systemPrompt;
+      settingKnowledge.value = config.knowledgeBase;
       settingsOverlay.style.display = 'flex';
     });
 
@@ -374,7 +387,8 @@
         apiUrl: settingApiUrl.value.trim(),
         apiKey: settingApiKey.value.trim(),
         modelName: settingModel.value.trim(),
-        systemPrompt: settingPrompt.value.trim()
+        systemPrompt: settingPrompt.value.trim(),
+        knowledgeBase: settingKnowledge.value.trim()
       });
       showToast('设置已保存');
       closeSettings();
@@ -382,7 +396,7 @@
 
     // 清除所有数据
     settingsClear.addEventListener('click', async () => {
-      if (confirm('确定要清除所有数据吗？\n\n这将删除您保存的 API Key、API 地址、模型名称和提示词。\n\n此操作不可恢复！')) {
+      if (confirm('确定要清除所有数据吗？\n\n这将删除您保存的 API Key、API 地址、模型名称、提示词和知识库。\n\n此操作不可恢复！')) {
         await new Promise((resolve) => {
           chrome.storage.local.clear(resolve);
         });
@@ -391,6 +405,7 @@
         settingApiKey.value = '';
         settingModel.value = DEFAULT_CONFIG.modelName;
         settingPrompt.value = DEFAULT_CONFIG.systemPrompt;
+        settingKnowledge.value = '';
         showToast('所有数据已清除');
         closeSettings();
       }
