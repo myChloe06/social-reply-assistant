@@ -3,22 +3,35 @@
 (function() {
   'use strict';
 
-  const VERSION = '5.1.1';
+  const VERSION = '5.2.0';
+
+  // 预设平台列表
+  const PRESET_PLATFORMS = [
+    { id: 'meta', name: 'Meta Business Suite', domain: 'business.facebook.com' },
+    { id: 'instagram', name: 'Instagram', domain: 'instagram.com' },
+    { id: 'youtube', name: 'YouTube Studio', domain: 'studio.youtube.com' },
+    { id: 'tiktok', name: 'TikTok Business', domain: 'business.tiktok.com' },
+    { id: 'twitter', name: 'Twitter/X', domain: 'twitter.com' },
+    { id: 'amazon', name: 'Amazon Seller', domain: 'sellercentral.amazon.com' },
+    { id: 'shopify', name: 'Shopify Admin', domain: 'admin.shopify.com' }
+  ];
 
   // 默认配置
   const DEFAULT_CONFIG = {
     apis: [],
     activeApiIndex: 0,
-    systemPrompt: `You are a professional social media customer service assistant.
+    platforms: {},  // { platformId: { prompt: '', knowledge: '' } }
+    customPlatforms: []  // [{ id: 'custom_xxx', name: 'xxx', domain: 'xxx.com' }]
+  };
+
+  const DEFAULT_PROMPT = `You are a professional social media customer service assistant.
 
 Response requirements:
 - Friendly and sincere tone
 - Concise, 1-2 sentences
 - Positive comments → Thank them
 - Questions → Provide help
-- Complaints → Apologize and offer solutions`,
-    knowledgeBase: ''
-  };
+- Complaints → Apologize and offer solutions`;
 
   // 对话历史（用于修改回复）
   let conversationHistory = [];
@@ -181,6 +194,10 @@ Response requirements:
         </div>
       </div>
       <div class="panel-content">
+        <div class="usage-hint">📌 Select comment text on page, then click "Generate Reply"</div>
+        <div class="section">
+          <div class="section-label">📍 Platform: <span id="current-platform">-</span></div>
+        </div>
         <div class="section">
           <div class="section-label">🔌 API</div>
           <div class="api-selector" id="api-selector">
@@ -228,24 +245,46 @@ Response requirements:
         </div>
         <div class="settings-body">
           <div class="form-group">
-            <label class="form-label">API Configuration</label>
+            <label class="form-label">📍 Platform Configuration</label>
+            <div class="platform-select-row">
+              <select class="form-select" id="platform-select">
+                <option value="">-- Select Platform --</option>
+              </select>
+              <button class="btn btn-secondary btn-small" id="add-custom-platform-btn">+ Custom</button>
+            </div>
+            <div id="custom-platform-input" class="custom-platform-input" style="display: none;">
+              <input type="text" class="form-input" id="custom-platform-name" placeholder="Platform name, e.g., My Store">
+              <input type="text" class="form-input" id="custom-platform-domain" placeholder="Domain, e.g., mystore.com">
+              <div class="form-hint">💡 Enter main domain only, e.g., amazon.com, ebay.com</div>
+              <div class="custom-platform-actions">
+                <button class="btn btn-secondary btn-small" id="cancel-custom-platform">Cancel</button>
+                <button class="btn btn-primary btn-small" id="save-custom-platform">Add</button>
+              </div>
+            </div>
+            <div id="platform-config-area" class="platform-config-area" style="display: none;">
+              <div class="platform-config-header">
+                <span id="platform-config-title">Platform Settings</span>
+                <button class="btn-icon delete-platform-btn" id="delete-platform-btn" title="Delete this platform" style="display: none;">🗑️</button>
+              </div>
+              <div class="form-group">
+                <label class="form-label">System Prompt</label>
+                <textarea class="form-textarea" id="platform-prompt" placeholder="Set AI role, tone, response rules..."></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Knowledge Base</label>
+                <textarea class="form-textarea" id="platform-knowledge" placeholder="Product info, pricing, FAQs..."></textarea>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">🔌 API Configuration</label>
             <div class="form-hint">Add multiple APIs. Auto-switch on failure.</div>
             <div class="api-list" id="api-list"></div>
             <button class="btn btn-secondary btn-small" id="add-api-btn">+ Add API</button>
           </div>
-          <div class="form-group">
-            <label class="form-label">System Prompt</label>
-            <div class="form-hint">Set AI role, tone, response rules (rarely changes)</div>
-            <textarea class="form-textarea" id="setting-prompt" placeholder="e.g., You are XX brand customer service, friendly tone..."></textarea>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Knowledge Base</label>
-            <div class="form-hint">Product info, pricing, FAQs (frequently updated)</div>
-            <textarea class="form-textarea" id="setting-knowledge" placeholder="e.g., Product A costs $99, suitable for ages 6+..."></textarea>
-          </div>
         </div>
         <div class="settings-footer">
-          <button class="btn btn-danger" id="settings-clear">🗑️ Clear All Data</button>
+          <button class="btn btn-danger" id="settings-clear">🗑️ Clear All</button>
           <div style="flex: 1;"></div>
           <button class="btn btn-secondary" id="settings-cancel">Cancel</button>
           <button class="btn btn-primary" id="settings-save">Save</button>
@@ -299,15 +338,42 @@ Response requirements:
   // 加载配置
   async function loadConfig() {
     return new Promise((resolve) => {
-      chrome.storage.local.get(['apis', 'activeApiIndex', 'systemPrompt', 'knowledgeBase'], (result) => {
+      chrome.storage.local.get(['apis', 'activeApiIndex', 'platforms', 'customPlatforms'], (result) => {
         resolve({
           apis: result.apis || DEFAULT_CONFIG.apis,
           activeApiIndex: result.activeApiIndex || DEFAULT_CONFIG.activeApiIndex,
-          systemPrompt: result.systemPrompt || DEFAULT_CONFIG.systemPrompt,
-          knowledgeBase: result.knowledgeBase || DEFAULT_CONFIG.knowledgeBase
+          platforms: result.platforms || DEFAULT_CONFIG.platforms,
+          customPlatforms: result.customPlatforms || DEFAULT_CONFIG.customPlatforms
         });
       });
     });
+  }
+
+  // 获取所有平台（预设 + 自定义）
+  function getAllPlatforms(config) {
+    const custom = (config.customPlatforms || []).map(p => ({
+      ...p,
+      isCustom: true
+    }));
+    return [...PRESET_PLATFORMS, ...custom];
+  }
+
+  // 根据当前 URL 匹配平台
+  function matchPlatform(config) {
+    const hostname = window.location.hostname;
+    const allPlatforms = getAllPlatforms(config);
+    
+    for (const platform of allPlatforms) {
+      if (hostname.includes(platform.domain)) {
+        return platform;
+      }
+    }
+    return null;
+  }
+
+  // 获取平台配置（提示词和知识库）
+  function getPlatformConfig(config, platformId) {
+    return config.platforms[platformId] || { prompt: DEFAULT_PROMPT, knowledge: '' };
   }
 
   // 保存配置
@@ -345,18 +411,21 @@ Response requirements:
   }
 
   // 调用 AI API（支持中止和故障切换）
-  async function callAI(config, comment, isRevision = false, revisionNote = '', progressCallback, startApiIndex = null) {
+  async function callAI(config, platform, comment, isRevision = false, revisionNote = '', progressCallback, startApiIndex = null) {
     if (!config.apis || config.apis.length === 0) {
       throw new Error('Please add API configuration in settings');
     }
+
+    // 获取平台配置
+    const platformConfig = platform ? getPlatformConfig(config, platform.id) : { prompt: DEFAULT_PROMPT, knowledge: '' };
 
     // 创建新的 AbortController
     currentAbortController = new AbortController();
     
     // 组合系统提示词
-    let fullSystemPrompt = config.systemPrompt;
-    if (config.knowledgeBase && config.knowledgeBase.trim()) {
-      fullSystemPrompt += `\n\n---\n[Knowledge Base]\n${config.knowledgeBase}`;
+    let fullSystemPrompt = platformConfig.prompt || DEFAULT_PROMPT;
+    if (platformConfig.knowledge && platformConfig.knowledge.trim()) {
+      fullSystemPrompt += `\n\n---\n[Knowledge Base]\n${platformConfig.knowledge}`;
     }
 
     let messages = [
@@ -663,8 +732,21 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     const settingsClear = document.getElementById('settings-clear');
     const addApiBtn = document.getElementById('add-api-btn');
     const apiListEl = document.getElementById('api-list');
-    const settingPrompt = document.getElementById('setting-prompt');
-    const settingKnowledge = document.getElementById('setting-knowledge');
+    
+    // 平台配置元素
+    const platformSelect = document.getElementById('platform-select');
+    const addCustomPlatformBtn = document.getElementById('add-custom-platform-btn');
+    const customPlatformInput = document.getElementById('custom-platform-input');
+    const customPlatformName = document.getElementById('custom-platform-name');
+    const customPlatformDomain = document.getElementById('custom-platform-domain');
+    const cancelCustomPlatform = document.getElementById('cancel-custom-platform');
+    const saveCustomPlatform = document.getElementById('save-custom-platform');
+    const platformConfigArea = document.getElementById('platform-config-area');
+    const platformConfigTitle = document.getElementById('platform-config-title');
+    const deletePlatformBtn = document.getElementById('delete-platform-btn');
+    const platformPrompt = document.getElementById('platform-prompt');
+    const platformKnowledge = document.getElementById('platform-knowledge');
+    const currentPlatformEl = document.getElementById('current-platform');
 
     // 日志面板元素
     const logClose = document.getElementById('log-close');
@@ -676,6 +758,31 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     let currentComment = '';
     let isGenerating = false;
     let tempApis = [];
+    let tempPlatforms = {};  // 临时平台配置
+    let tempCustomPlatforms = [];  // 临时自定义平台
+    let currentPlatform = null;  // 当前匹配的平台
+    let selectedPlatformId = null;  // 设置中选中的平台
+
+    // 渲染平台下拉选择
+    function renderPlatformSelect(config) {
+      const allPlatforms = getAllPlatforms(config);
+      platformSelect.innerHTML = '<option value="">-- Select Platform --</option>' +
+        allPlatforms.map(p => `<option value="${p.id}">${p.name}${p.isCustom ? ' (Custom)' : ''}</option>`).join('');
+    }
+
+    // 加载并显示当前平台
+    async function refreshCurrentPlatform() {
+      const config = await loadConfig();
+      currentPlatform = matchPlatform(config);
+      if (currentPlatform) {
+        currentPlatformEl.textContent = currentPlatform.name;
+        panel.style.display = 'flex';
+      } else {
+        currentPlatformEl.textContent = 'Not configured';
+        // 仍然显示面板，让用户可以配置
+        panel.style.display = 'flex';
+      }
+    }
 
     // 加载并渲染 API 选择器
     async function refreshApiSelector() {
@@ -687,6 +794,7 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     }
 
     await refreshApiSelector();
+    await refreshCurrentPlatform();
 
     // 监听文本选择（排除插件面板内的选择）
     document.addEventListener('mouseup', (e) => {
@@ -724,10 +832,112 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     settingsBtn.addEventListener('click', async () => {
       const config = await loadConfig();
       tempApis = JSON.parse(JSON.stringify(config.apis));
+      tempPlatforms = JSON.parse(JSON.stringify(config.platforms || {}));
+      tempCustomPlatforms = JSON.parse(JSON.stringify(config.customPlatforms || []));
       renderApiList(apiListEl, tempApis);
-      settingPrompt.value = config.systemPrompt;
-      settingKnowledge.value = config.knowledgeBase;
+      renderPlatformSelect({ ...config, customPlatforms: tempCustomPlatforms });
+      
+      // 重置平台配置区域
+      platformSelect.value = '';
+      platformConfigArea.style.display = 'none';
+      customPlatformInput.style.display = 'none';
+      selectedPlatformId = null;
+      
       settingsOverlay.style.display = 'flex';
+    });
+
+    // 平台选择变化
+    platformSelect.addEventListener('change', () => {
+      const platformId = platformSelect.value;
+      if (!platformId) {
+        platformConfigArea.style.display = 'none';
+        selectedPlatformId = null;
+        return;
+      }
+      
+      selectedPlatformId = platformId;
+      const allPlatforms = [...PRESET_PLATFORMS, ...tempCustomPlatforms];
+      const platform = allPlatforms.find(p => p.id === platformId);
+      const platformConf = tempPlatforms[platformId] || { prompt: DEFAULT_PROMPT, knowledge: '' };
+      
+      platformConfigTitle.textContent = platform ? platform.name : 'Platform Settings';
+      platformPrompt.value = platformConf.prompt || DEFAULT_PROMPT;
+      platformKnowledge.value = platformConf.knowledge || '';
+      
+      // 只有自定义平台才能删除
+      const isCustom = tempCustomPlatforms.some(p => p.id === platformId);
+      deletePlatformBtn.style.display = isCustom ? 'inline-block' : 'none';
+      
+      platformConfigArea.style.display = 'block';
+    });
+
+    // 平台配置输入变化时保存到临时对象
+    platformPrompt.addEventListener('input', () => {
+      if (selectedPlatformId) {
+        if (!tempPlatforms[selectedPlatformId]) {
+          tempPlatforms[selectedPlatformId] = { prompt: '', knowledge: '' };
+        }
+        tempPlatforms[selectedPlatformId].prompt = platformPrompt.value;
+      }
+    });
+
+    platformKnowledge.addEventListener('input', () => {
+      if (selectedPlatformId) {
+        if (!tempPlatforms[selectedPlatformId]) {
+          tempPlatforms[selectedPlatformId] = { prompt: '', knowledge: '' };
+        }
+        tempPlatforms[selectedPlatformId].knowledge = platformKnowledge.value;
+      }
+    });
+
+    // 显示添加自定义平台输入框
+    addCustomPlatformBtn.addEventListener('click', () => {
+      customPlatformInput.style.display = 'block';
+      customPlatformName.value = '';
+      customPlatformDomain.value = '';
+      customPlatformName.focus();
+    });
+
+    // 取消添加自定义平台
+    cancelCustomPlatform.addEventListener('click', () => {
+      customPlatformInput.style.display = 'none';
+    });
+
+    // 保存自定义平台
+    saveCustomPlatform.addEventListener('click', () => {
+      const name = customPlatformName.value.trim();
+      const domain = customPlatformDomain.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+      
+      if (!name || !domain) {
+        showToast('Please enter platform name and domain');
+        return;
+      }
+      
+      const id = 'custom_' + Date.now();
+      tempCustomPlatforms.push({ id, name, domain });
+      renderPlatformSelect({ customPlatforms: tempCustomPlatforms });
+      platformSelect.value = id;
+      platformSelect.dispatchEvent(new Event('change'));
+      customPlatformInput.style.display = 'none';
+      showToast('Platform added');
+    });
+
+    // 删除自定义平台
+    deletePlatformBtn.addEventListener('click', () => {
+      if (!selectedPlatformId) return;
+      
+      const platform = tempCustomPlatforms.find(p => p.id === selectedPlatformId);
+      if (!platform) return;
+      
+      if (confirm(`Delete platform "${platform.name}"?`)) {
+        tempCustomPlatforms = tempCustomPlatforms.filter(p => p.id !== selectedPlatformId);
+        delete tempPlatforms[selectedPlatformId];
+        renderPlatformSelect({ customPlatforms: tempCustomPlatforms });
+        platformSelect.value = '';
+        platformConfigArea.style.display = 'none';
+        selectedPlatformId = null;
+        showToast('Platform deleted');
+      }
     });
 
     // 添加 API
@@ -788,27 +998,32 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       await saveConfig({
         apis: validApis,
         activeApiIndex: newActiveIndex,
-        systemPrompt: settingPrompt.value.trim(),
-        knowledgeBase: settingKnowledge.value.trim()
+        platforms: tempPlatforms,
+        customPlatforms: tempCustomPlatforms
       });
       
       await refreshApiSelector();
-      Logger.info('Settings saved', { apiCount: validApis.length });
+      await refreshCurrentPlatform();
+      Logger.info('Settings saved', { apiCount: validApis.length, platformCount: Object.keys(tempPlatforms).length });
       showToast('Settings saved');
       closeSettings();
     });
 
     // 清除所有数据
     settingsClear.addEventListener('click', async () => {
-      if (confirm('Delete all data?\n\nThis will remove all API configs, prompts, and knowledge base.\n\nThis cannot be undone!')) {
+      if (confirm('Delete all data?\n\nThis will remove all API configs, platform settings, and custom platforms.\n\nThis cannot be undone!')) {
         await new Promise((resolve) => {
           chrome.storage.local.clear(resolve);
         });
         tempApis = [];
+        tempPlatforms = {};
+        tempCustomPlatforms = [];
         renderApiList(apiListEl, tempApis);
-        settingPrompt.value = DEFAULT_CONFIG.systemPrompt;
-        settingKnowledge.value = '';
+        renderPlatformSelect({ customPlatforms: [] });
+        platformSelect.value = '';
+        platformConfigArea.style.display = 'none';
         await refreshApiSelector();
+        await refreshCurrentPlatform();
         Logger.info('All data cleared');
         showToast('All data cleared');
         closeSettings();
@@ -867,6 +1082,13 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
         return;
       }
 
+      // 检查当前平台是否有配置
+      if (!currentPlatform) {
+        showToast('Current site not configured. Please add in settings.');
+        settingsBtn.click();
+        return;
+      }
+
       isGenerating = true;
       generateBtn.style.display = 'none';
       abortBtn.style.display = 'block';
@@ -878,7 +1100,7 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       Progress.start(resultArea);
 
       try {
-        const aiResponse = await callAI(config, currentComment, false, '', (status) => {
+        const aiResponse = await callAI(config, currentPlatform, currentComment, false, '', (status) => {
           Progress.update(status);
         });
         const elapsed = Progress.success('Generated successfully');
@@ -892,7 +1114,7 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
           revisionInput.value = '';
         }, 500);
         
-        Logger.info('Generation complete', { elapsed: elapsed + 's', usedApi: aiResponse.usedApi });
+        Logger.info('Generation complete', { elapsed: elapsed + 's', usedApi: aiResponse.usedApi, platform: currentPlatform?.name });
       } catch (error) {
         Progress.stop();
         if (error.name === 'AbortError') {
@@ -936,7 +1158,7 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       Progress.start(resultArea);
 
       try {
-        const aiResponse = await callAI(config, currentComment, true, revisionNote, (status) => {
+        const aiResponse = await callAI(config, currentPlatform, currentComment, true, revisionNote, (status) => {
           Progress.update(status);
         });
         const elapsed = Progress.success('Revised successfully');

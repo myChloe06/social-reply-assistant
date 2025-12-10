@@ -1,21 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "Meta Business Suite 评论回复助手",
-  "version": "5.1.1",
-  "description": "AI 驱动的评论回复生成工具，支持多语言翻译",
+  "name": "Reply Assistant",
+  "version": "5.2.0",
+  "description": "AI-powered comment reply tool with multi-language support",
   "permissions": [
     "storage",
     "activeTab"
   ],
   "host_permissions": [
-    "https://business.facebook.com/*",
-    "https://www.facebook.com/business/*"
+    "https://*/*",
+    "http://*/*"
   ],
   "content_scripts": [
     {
       "matches": [
-        "https://business.facebook.com/*",
-        "https://www.facebook.com/business/*"
+        "https://*/*",
+        "http://*/*"
       ],
       "js": ["content.js"],
       "css": ["styles.css"],
