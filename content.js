@@ -1,18 +1,22 @@
-// Meta Business Suite 评论回复助手
+// Meta Business Suite 评论回复助手 v5.1
+// 更新：多语言逻辑修正、插件内选择修复、进度显示优化、内置提示词改英文
 (function() {
   'use strict';
 
+  const VERSION = '5.1.1';
+
   // 默认配置
   const DEFAULT_CONFIG = {
-    apiUrl: '',
-    apiKey: '',
-    modelName: 'gpt-3.5-turbo',
-    systemPrompt: `你是一个专业的社交媒体客服助手。
+    apis: [],
+    activeApiIndex: 0,
+    systemPrompt: `You are a professional social media customer service assistant.
 
-回复要求：
-- 语气友好、真诚
-- 简洁明了，1-2句话
-- 好评→感谢，问题→帮助，投诉→道歉+解决方案`,
+Response requirements:
+- Friendly and sincere tone
+- Concise, 1-2 sentences
+- Positive comments → Thank them
+- Questions → Provide help
+- Complaints → Apologize and offer solutions`,
     knowledgeBase: ''
   };
 
@@ -21,6 +25,9 @@
   
   // 当前请求的 AbortController
   let currentAbortController = null;
+
+  // 插件面板元素引用
+  let panelElement = null;
 
   // ==================== 日志系统 ====================
   const Logger = {
@@ -86,12 +93,15 @@
     start(statusEl) {
       this.statusEl = statusEl;
       this.startTime = Date.now();
-      this.update('连接中...');
+      this.update('Connecting...');
       
       this.timerInterval = setInterval(() => {
         const elapsed = ((Date.now() - this.startTime) / 1000).toFixed(1);
-        const currentStatus = this.statusEl.querySelector('.progress-text')?.textContent?.split(' (')[0] || '处理中';
-        this.update(`${currentStatus} (${elapsed}s)`);
+        const currentText = this.statusEl.querySelector('.progress-text');
+        if (currentText) {
+          const statusPart = currentText.textContent.split(' (')[0];
+          currentText.textContent = `${statusPart} (${elapsed}s)`;
+        }
       }, 100);
     },
 
@@ -100,11 +110,28 @@
         const elapsed = this.startTime ? ((Date.now() - this.startTime) / 1000).toFixed(1) : '0.0';
         this.statusEl.innerHTML = `
           <div class="progress-status">
-            <div class="loading-spinner"></div>
-            <span class="progress-text">${status}</span>
+            <span class="progress-text">${status} (${elapsed}s)</span>
           </div>
         `;
       }
+    },
+
+    success(message = 'Generated successfully') {
+      if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+      }
+      const elapsed = this.startTime ? ((Date.now() - this.startTime) / 1000).toFixed(1) : '0';
+      this.startTime = null;
+      
+      if (this.statusEl) {
+        this.statusEl.innerHTML = `
+          <div class="progress-status progress-success">
+            <span class="progress-text">✓ ${message} (${elapsed}s)</span>
+          </div>
+        `;
+      }
+      return elapsed;
     },
 
     stop() {
@@ -118,43 +145,72 @@
     }
   };
 
+  // ==================== 语言检测 ====================
+  // 检测是否为英语
+  function isEnglish(text) {
+    const englishChars = text.match(/[a-zA-Z]/g) || [];
+    const totalChars = text.replace(/\s/g, '').length;
+    return totalChars > 0 && (englishChars.length / totalChars) > 0.7;
+  }
+
+  // 检测是否为中文（简体或繁体）
+  function isChinese(text) {
+    const chineseChars = text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || [];
+    const totalChars = text.replace(/\s/g, '').length;
+    return totalChars > 0 && (chineseChars.length / totalChars) > 0.3;
+  }
+
+  // 获取语言类型
+  function getLanguageType(text) {
+    if (isEnglish(text)) return 'english';
+    if (isChinese(text)) return 'chinese';
+    return 'other';
+  }
+
   // 创建主面板
   function createPanel() {
     const panel = document.createElement('div');
     panel.id = 'meta-reply-panel';
     panel.innerHTML = `
       <div class="panel-header">
-        <span class="header-title">💬 评论回复助手</span>
+        <span class="header-title">💬 Reply Assistant <span class="version">v${VERSION}</span></span>
         <div class="header-actions">
-          <button class="header-btn log-btn" title="查看日志">📋</button>
-          <button class="header-btn settings-btn" title="设置">⚙️</button>
-          <button class="collapse-btn" title="收起">−</button>
+          <button class="header-btn log-btn" title="View Logs">📋</button>
+          <button class="header-btn settings-btn" title="Settings">⚙️</button>
+          <button class="collapse-btn" title="Collapse">−</button>
         </div>
       </div>
       <div class="panel-content">
         <div class="section">
-          <div class="section-label">📝 选中的评论</div>
-          <div class="section-box empty" id="selected-comment">请用鼠标选中页面上的评论文字</div>
+          <div class="section-label">🔌 API</div>
+          <div class="api-selector" id="api-selector">
+            <span class="no-api-hint">Please add API in settings</span>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-label">📝 Selected Comment</div>
+          <div class="section-box empty" id="selected-comment">Select comment text on the page</div>
         </div>
         <div class="section" id="result-section" style="display: none;">
-          <div class="section-label">🤖 AI 回复</div>
+          <div class="section-label">🤖 AI Reply</div>
           <div id="result-area"></div>
         </div>
         <div class="section" id="revision-section" style="display: none;">
-          <div class="section-label">✏️ 修改意见</div>
-          <textarea class="revision-input" id="revision-input" placeholder="输入修改意见，例如：语气再热情一点、加上优惠信息、更简短一些..."></textarea>
+          <div class="section-label">✏️ Revision Notes</div>
+          <textarea class="revision-input" id="revision-input" placeholder="Enter revision notes, e.g., more friendly, add discount info, shorter..."></textarea>
         </div>
         <div class="button-group">
-          <button class="btn btn-primary" id="generate-btn">生成回复</button>
-          <button class="btn btn-danger" id="abort-btn" style="display: none;">停止生成</button>
-          <button class="btn btn-secondary" id="copy-btn" style="display: none;">复制回复</button>
+          <button class="btn btn-primary" id="generate-btn">Generate Reply</button>
+          <button class="btn btn-danger" id="abort-btn" style="display: none;">Stop</button>
+          <button class="btn btn-secondary" id="copy-btn" style="display: none;">Copy Reply</button>
         </div>
         <div class="button-group" id="revision-buttons" style="display: none;">
-          <button class="btn btn-primary" id="revise-btn">根据意见修改</button>
+          <button class="btn btn-primary" id="revise-btn">Revise</button>
         </div>
       </div>
     `;
     document.body.appendChild(panel);
+    panelElement = panel;
     return panel;
   }
 
@@ -167,40 +223,32 @@
     overlay.innerHTML = `
       <div class="settings-panel">
         <div class="settings-header">
-          <span class="settings-title">⚙️ 设置</span>
+          <span class="settings-title">⚙️ Settings</span>
           <button class="settings-close" id="settings-close">×</button>
         </div>
         <div class="settings-body">
           <div class="form-group">
-            <label class="form-label">API 地址</label>
-            <div class="form-hint">OpenAI 兼容格式，例如：https://api.openai.com/v1/chat/completions</div>
-            <input type="text" class="form-input" id="setting-api-url" placeholder="输入 API 地址">
+            <label class="form-label">API Configuration</label>
+            <div class="form-hint">Add multiple APIs. Auto-switch on failure.</div>
+            <div class="api-list" id="api-list"></div>
+            <button class="btn btn-secondary btn-small" id="add-api-btn">+ Add API</button>
           </div>
           <div class="form-group">
-            <label class="form-label">API Key</label>
-            <input type="password" class="form-input" id="setting-api-key" placeholder="输入 API Key">
+            <label class="form-label">System Prompt</label>
+            <div class="form-hint">Set AI role, tone, response rules (rarely changes)</div>
+            <textarea class="form-textarea" id="setting-prompt" placeholder="e.g., You are XX brand customer service, friendly tone..."></textarea>
           </div>
           <div class="form-group">
-            <label class="form-label">模型名称</label>
-            <div class="form-hint">例如：gpt-3.5-turbo、qwen-turbo、deepseek-chat</div>
-            <input type="text" class="form-input" id="setting-model" placeholder="输入模型名称">
-          </div>
-          <div class="form-group">
-            <label class="form-label">角色提示词</label>
-            <div class="form-hint">设置 AI 的角色、语气、回复规则等（基本不变的内容）</div>
-            <textarea class="form-textarea" id="setting-prompt" placeholder="例如：你是XX品牌客服，语气热情友好，回复简洁..."></textarea>
-          </div>
-          <div class="form-group">
-            <label class="form-label">知识库</label>
-            <div class="form-hint">产品信息、价格、常见问题等（经常更新的内容）</div>
-            <textarea class="form-textarea" id="setting-knowledge" placeholder="例如：产品A售价99元，适合6岁以上..."></textarea>
+            <label class="form-label">Knowledge Base</label>
+            <div class="form-hint">Product info, pricing, FAQs (frequently updated)</div>
+            <textarea class="form-textarea" id="setting-knowledge" placeholder="e.g., Product A costs $99, suitable for ages 6+..."></textarea>
           </div>
         </div>
         <div class="settings-footer">
-          <button class="btn btn-danger" id="settings-clear">🗑️ 清除所有数据</button>
+          <button class="btn btn-danger" id="settings-clear">🗑️ Clear All Data</button>
           <div style="flex: 1;"></div>
-          <button class="btn btn-secondary" id="settings-cancel">取消</button>
-          <button class="btn btn-primary" id="settings-save">保存设置</button>
+          <button class="btn btn-secondary" id="settings-cancel">Cancel</button>
+          <button class="btn btn-primary" id="settings-save">Save</button>
         </div>
       </div>
     `;
@@ -217,17 +265,17 @@
     overlay.innerHTML = `
       <div class="settings-panel log-panel">
         <div class="settings-header">
-          <span class="settings-title">📋 运行日志</span>
+          <span class="settings-title">📋 Logs</span>
           <button class="settings-close" id="log-close">×</button>
         </div>
         <div class="settings-body">
           <div class="log-content" id="log-content"></div>
         </div>
         <div class="settings-footer">
-          <button class="btn btn-danger" id="log-clear">清空日志</button>
+          <button class="btn btn-danger" id="log-clear">Clear Logs</button>
           <div style="flex: 1;"></div>
-          <button class="btn btn-secondary" id="log-export">导出日志</button>
-          <button class="btn btn-primary" id="log-close-btn">关闭</button>
+          <button class="btn btn-secondary" id="log-export">Export</button>
+          <button class="btn btn-primary" id="log-close-btn">Close</button>
         </div>
       </div>
     `;
@@ -251,11 +299,10 @@
   // 加载配置
   async function loadConfig() {
     return new Promise((resolve) => {
-      chrome.storage.local.get(['apiUrl', 'apiKey', 'modelName', 'systemPrompt', 'knowledgeBase'], (result) => {
+      chrome.storage.local.get(['apis', 'activeApiIndex', 'systemPrompt', 'knowledgeBase'], (result) => {
         resolve({
-          apiUrl: result.apiUrl || DEFAULT_CONFIG.apiUrl,
-          apiKey: result.apiKey || DEFAULT_CONFIG.apiKey,
-          modelName: result.modelName || DEFAULT_CONFIG.modelName,
+          apis: result.apis || DEFAULT_CONFIG.apis,
+          activeApiIndex: result.activeApiIndex || DEFAULT_CONFIG.activeApiIndex,
           systemPrompt: result.systemPrompt || DEFAULT_CONFIG.systemPrompt,
           knowledgeBase: result.knowledgeBase || DEFAULT_CONFIG.knowledgeBase
         });
@@ -270,24 +317,46 @@
     });
   }
 
-  // 检测语言是否为英语
-  function isEnglish(text) {
-    const englishChars = text.match(/[a-zA-Z]/g) || [];
-    const totalChars = text.replace(/\s/g, '').length;
-    return totalChars > 0 && (englishChars.length / totalChars) > 0.7;
+  // 调用单个 API
+  async function callSingleAPI(api, messages, signal, progressCallback) {
+    if (progressCallback) progressCallback(`Calling ${api.name}...`);
+
+    const response = await fetch(api.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${api.key}`
+      },
+      body: JSON.stringify({
+        model: api.model,
+        messages: messages,
+        temperature: 0.7
+      }),
+      signal: signal
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`${api.name} failed: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
   }
 
-  // 调用 AI API（支持中止）
-  async function callAI(config, comment, isRevision = false, revisionNote = '', progressCallback) {
-    const isEng = isEnglish(comment);
-    
+  // 调用 AI API（支持中止和故障切换）
+  async function callAI(config, comment, isRevision = false, revisionNote = '', progressCallback, startApiIndex = null) {
+    if (!config.apis || config.apis.length === 0) {
+      throw new Error('Please add API configuration in settings');
+    }
+
     // 创建新的 AbortController
     currentAbortController = new AbortController();
     
     // 组合系统提示词
     let fullSystemPrompt = config.systemPrompt;
     if (config.knowledgeBase && config.knowledgeBase.trim()) {
-      fullSystemPrompt += `\n\n---\n【产品知识库】\n${config.knowledgeBase}`;
+      fullSystemPrompt += `\n\n---\n[Knowledge Base]\n${config.knowledgeBase}`;
     }
 
     let messages = [
@@ -298,87 +367,89 @@
       messages = messages.concat(conversationHistory);
       messages.push({
         role: 'user',
-        content: `请根据以下修改意见调整回复：\n\n修改意见：${revisionNote}\n\n请保持之前的输出格式。`
+        content: `Please revise the reply based on these notes:\n\nRevision notes: ${revisionNote}\n\nKeep the same output format as before.`
       });
     } else {
-      let userPrompt;
-      if (isEng) {
-        userPrompt = `请根据以下评论生成回复：
+      // Let AI detect language and decide output format
+      let userPrompt = `Please generate a reply for this comment.
 
-评论内容：${comment}
+Comment: ${comment}
 
-请直接输出回复内容，不需要任何解释。`;
-      } else {
-        userPrompt = `请根据以下评论生成回复。由于评论不是英语，请按以下格式输出：
+Instructions:
+1. First, detect the language of the comment
+2. If the comment is in English or Chinese (Simplified/Traditional): output ONLY the reply, nothing else
+3. If the comment is in ANY OTHER language (Spanish, German, French, Japanese, Korean, Arabic, etc.): output in this exact format:
+[Comment Translation] (translate the comment to Chinese)
+[Reply] (reply in the SAME language as the original comment)
+[Reply Translation] (translate the reply to Chinese)
 
-评论内容：${comment}
-
-请按以下格式输出（保持格式标签）：
-【评论翻译】（将评论翻译成中文）
-【回复内容】（用评论的原始语言回复）
-【回复翻译】（将回复翻译成中文）`;
-      }
+Important: For non-English/non-Chinese comments, you MUST use the three-part format with labels.`;
+      
       messages.push({ role: 'user', content: userPrompt });
     }
 
-    Logger.info('发送 API 请求', { 
-      url: config.apiUrl, 
-      model: config.modelName,
-      commentLength: comment.length,
-      isRevision 
-    });
+    // 从指定索引或当前激活的 API 开始尝试
+    const startIndex = startApiIndex !== null ? startApiIndex : config.activeApiIndex;
+    let lastError = null;
 
-    if (progressCallback) progressCallback('请求发送中...');
+    for (let i = 0; i < config.apis.length; i++) {
+      const apiIndex = (startIndex + i) % config.apis.length;
+      const api = config.apis[apiIndex];
 
-    const response = await fetch(config.apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`
-      },
-      body: JSON.stringify({
-        model: config.modelName,
-        messages: messages,
-        temperature: 0.7
-      }),
-      signal: currentAbortController.signal
-    });
+      Logger.info('Trying API', { 
+        name: api.name,
+        url: api.url, 
+        model: api.model,
+        attempt: i + 1
+      });
 
-    if (progressCallback) progressCallback('等待响应...');
+      try {
+        const assistantMessage = await callSingleAPI(
+          api, 
+          messages, 
+          currentAbortController.signal,
+          progressCallback
+        );
 
-    if (!response.ok) {
-      const error = await response.text();
-      Logger.error('API 请求失败', { status: response.status, error });
-      throw new Error(`API 请求失败: ${response.status} - ${error}`);
+        Logger.info('API success', { 
+          name: api.name,
+          responseLength: assistantMessage.length
+        });
+
+        // 更新对话历史
+        if (!isRevision) {
+          conversationHistory = [
+            messages[messages.length - 1],
+            { role: 'assistant', content: assistantMessage }
+          ];
+        } else {
+          conversationHistory.push(
+            { role: 'user', content: `Please revise the reply based on these notes:\n\nRevision notes: ${revisionNote}\n\nKeep the same output format as before.` },
+            { role: 'assistant', content: assistantMessage }
+          );
+        }
+
+        return {
+          content: assistantMessage,
+          usedApi: api.name
+        };
+
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          throw error;
+        }
+        
+        lastError = error;
+        Logger.warn(`API ${api.name} failed, trying next`, { error: error.message });
+        
+        if (progressCallback) {
+          progressCallback(`${api.name} failed, switching...`);
+        }
+      }
     }
 
-    if (progressCallback) progressCallback('解析响应...');
-
-    const data = await response.json();
-    const assistantMessage = data.choices[0].message.content;
-
-    Logger.info('API 响应成功', { 
-      responseLength: assistantMessage.length,
-      usage: data.usage 
-    });
-
-    // 更新对话历史
-    if (!isRevision) {
-      conversationHistory = [
-        messages[messages.length - 1],
-        { role: 'assistant', content: assistantMessage }
-      ];
-    } else {
-      conversationHistory.push(
-        { role: 'user', content: `请根据以下修改意见调整回复：\n\n修改意见：${revisionNote}\n\n请保持之前的输出格式。` },
-        { role: 'assistant', content: assistantMessage }
-      );
-    }
-
-    return {
-      content: assistantMessage,
-      isEnglish: isEng
-    };
+    Logger.error('All APIs failed', { lastError: lastError?.message });
+    throw new Error(`All APIs failed. Last error: ${lastError?.message}`);
   }
 
   // 中止当前请求
@@ -386,7 +457,7 @@
     if (currentAbortController) {
       currentAbortController.abort();
       currentAbortController = null;
-      Logger.warn('用户中止了请求');
+      Logger.warn('Request aborted by user');
     }
   }
 
@@ -398,9 +469,14 @@
       replyTranslation: ''
     };
 
-    const commentMatch = content.match(/【评论翻译】(.+?)(?=【|$)/s);
-    const replyMatch = content.match(/【回复内容】(.+?)(?=【|$)/s);
-    const replyTransMatch = content.match(/【回复翻译】(.+?)(?=【|$)/s);
+    // 支持中英文标签
+    const commentMatch = content.match(/\[Comment Translation\](.+?)(?=\[|$)/s) || 
+                         content.match(/【评论翻译】(.+?)(?=【|$)/s);
+    const replyMatch = content.match(/\[Reply\](.+?)(?=\[|$)/s) || 
+                       content.match(/【回复内容】(.+?)(?=【|$)/s) ||
+                       content.match(/【回复】(.+?)(?=【|$)/s);
+    const replyTransMatch = content.match(/\[Reply Translation\](.+?)(?=\[|$)/s) || 
+                            content.match(/【回复翻译】(.+?)(?=【|$)/s);
 
     if (commentMatch) result.commentTranslation = commentMatch[1].trim();
     if (replyMatch) result.reply = replyMatch[1].trim();
@@ -415,24 +491,36 @@
 
   // 渲染结果
   function renderResult(resultArea, aiResponse) {
-    if (aiResponse.isEnglish) {
-      resultArea.innerHTML = `<div class="section-box">${aiResponse.content}</div>`;
+    const usedApiHtml = aiResponse.usedApi ? 
+      `<div class="used-api-hint">Used: ${aiResponse.usedApi}</div>` : '';
+
+    // Check if response contains the three-part format
+    const hasTranslationFormat = aiResponse.content.includes('[Comment Translation]') || 
+                                  aiResponse.content.includes('[Reply]') ||
+                                  aiResponse.content.includes('【评论翻译】') ||
+                                  aiResponse.content.includes('【回复】');
+
+    if (!hasTranslationFormat) {
+      // Simple reply (English or Chinese comment)
+      resultArea.innerHTML = `${usedApiHtml}<div class="section-box">${aiResponse.content}</div>`;
     } else {
+      // Three-part format (other languages)
       const parsed = parseMultilingualResponse(aiResponse.content);
       resultArea.innerHTML = `
+        ${usedApiHtml}
         ${parsed.commentTranslation ? `
           <div class="translation-block">
-            <div class="translation-label">📖 评论翻译</div>
+            <div class="translation-label">📖 Comment Translation</div>
             <div class="translation-content">${parsed.commentTranslation}</div>
           </div>
         ` : ''}
         <div class="translation-block">
-          <div class="translation-label">💬 回复内容</div>
+          <div class="translation-label">💬 Reply</div>
           <div class="translation-content">${parsed.reply}</div>
         </div>
         ${parsed.replyTranslation ? `
           <div class="translation-block">
-            <div class="translation-label">🔤 回复翻译</div>
+            <div class="translation-label">🔤 Reply Translation</div>
             <div class="translation-content">${parsed.replyTranslation}</div>
           </div>
         ` : ''}
@@ -441,25 +529,27 @@
   }
 
   // 获取要复制的回复内容
-  function getReplyContent(resultArea, isEnglish) {
-    if (isEnglish) {
-      const box = resultArea.querySelector('.section-box');
-      return box ? box.textContent : '';
-    } else {
-      const replyBlock = resultArea.querySelectorAll('.translation-block')[1];
-      if (replyBlock) {
-        const content = replyBlock.querySelector('.translation-content');
+  function getReplyContent(resultArea) {
+    // First try to find the Reply block (for three-part format)
+    const blocks = resultArea.querySelectorAll('.translation-block');
+    for (const block of blocks) {
+      const label = block.querySelector('.translation-label');
+      if (label && label.textContent.includes('Reply') && !label.textContent.includes('Translation')) {
+        const content = block.querySelector('.translation-content');
         return content ? content.textContent : '';
       }
-      return '';
     }
+    
+    // If no translation blocks, get the simple reply box
+    const box = resultArea.querySelector('.section-box');
+    return box ? box.textContent : '';
   }
 
   // 渲染日志内容
   function renderLogs(logContent) {
     const logs = Logger.logs;
     if (logs.length === 0) {
-      logContent.innerHTML = '<div class="log-empty">暂无日志</div>';
+      logContent.innerHTML = '<div class="log-empty">No logs</div>';
       return;
     }
 
@@ -477,9 +567,70 @@
     }).join('');
   }
 
+  // 渲染 API 列表（设置面板中）
+  function renderApiList(apiListEl, apis) {
+    if (apis.length === 0) {
+      apiListEl.innerHTML = '<div class="no-api-message">No API added</div>';
+      return;
+    }
+
+    apiListEl.innerHTML = apis.map((api, index) => `
+      <div class="api-item" data-index="${index}">
+        <div class="api-item-header">
+          <span class="api-item-name">${api.name || 'Unnamed API'}</span>
+          <button class="api-item-delete" data-index="${index}" title="Delete">×</button>
+        </div>
+        <div class="api-item-fields">
+          <input type="text" class="form-input api-field-name" placeholder="API Name" value="${api.name || ''}" data-index="${index}" data-field="name">
+          <input type="text" class="form-input api-field-url" placeholder="API URL" value="${api.url || ''}" data-index="${index}" data-field="url">
+          <input type="password" class="form-input api-field-key" placeholder="API Key" value="${api.key || ''}" data-index="${index}" data-field="key">
+          <input type="text" class="form-input api-field-model" placeholder="Model Name" value="${api.model || ''}" data-index="${index}" data-field="model">
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // 渲染 API 选择器（主面板中）
+  function renderApiSelector(selectorEl, apis, activeIndex, onChange) {
+    if (apis.length === 0) {
+      selectorEl.innerHTML = '<span class="no-api-hint">Please add API in settings</span>';
+      return;
+    }
+
+    selectorEl.innerHTML = apis.map((api, index) => `
+      <label class="api-radio-label" title="${api.url}">
+        <input type="radio" name="api-select" value="${index}" ${index === activeIndex ? 'checked' : ''}>
+        <span class="api-radio-dot"></span>
+        <span class="api-radio-name">${api.name || 'Unnamed'}</span>
+      </label>
+    `).join('');
+
+    selectorEl.querySelectorAll('input[name="api-select"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const newIndex = parseInt(e.target.value);
+        onChange(newIndex);
+      });
+    });
+  }
+
+  // 检查选择是否在插件面板内
+  function isSelectionInsidePanel(selection) {
+    if (!selection || !selection.anchorNode || !panelElement) return false;
+    
+    let node = selection.anchorNode;
+    while (node) {
+      if (node === panelElement) return true;
+      if (node.id === 'meta-reply-panel') return true;
+      if (node.id === 'settings-overlay') return true;
+      if (node.id === 'log-overlay') return true;
+      node = node.parentNode;
+    }
+    return false;
+  }
+
   // 主初始化函数
   async function init() {
-    Logger.info('插件初始化');
+    Logger.info(`Plugin initialized v${VERSION}`);
     await Logger.load();
 
     // 创建面板
@@ -497,6 +648,7 @@
     const settingsBtn = panel.querySelector('.settings-btn');
     const logBtn = panel.querySelector('.log-btn');
     const collapseBtn = panel.querySelector('.collapse-btn');
+    const apiSelector = document.getElementById('api-selector');
 
     // 修改意见相关元素
     const revisionSection = document.getElementById('revision-section');
@@ -509,9 +661,8 @@
     const settingsCancel = document.getElementById('settings-cancel');
     const settingsSave = document.getElementById('settings-save');
     const settingsClear = document.getElementById('settings-clear');
-    const settingApiUrl = document.getElementById('setting-api-url');
-    const settingApiKey = document.getElementById('setting-api-key');
-    const settingModel = document.getElementById('setting-model');
+    const addApiBtn = document.getElementById('add-api-btn');
+    const apiListEl = document.getElementById('api-list');
     const settingPrompt = document.getElementById('setting-prompt');
     const settingKnowledge = document.getElementById('setting-knowledge');
 
@@ -523,17 +674,35 @@
     const logContent = document.getElementById('log-content');
 
     let currentComment = '';
-    let currentIsEnglish = true;
     let isGenerating = false;
+    let tempApis = [];
 
-    // 监听文本选择
-    document.addEventListener('mouseup', () => {
-      const selection = window.getSelection().toString().trim();
-      if (selection && selection.length > 0) {
-        currentComment = selection;
-        selectedCommentEl.textContent = selection;
+    // 加载并渲染 API 选择器
+    async function refreshApiSelector() {
+      const config = await loadConfig();
+      renderApiSelector(apiSelector, config.apis, config.activeApiIndex, async (newIndex) => {
+        await saveConfig({ ...config, activeApiIndex: newIndex });
+        Logger.info('Switched API', { name: config.apis[newIndex]?.name });
+      });
+    }
+
+    await refreshApiSelector();
+
+    // 监听文本选择（排除插件面板内的选择）
+    document.addEventListener('mouseup', (e) => {
+      const selection = window.getSelection();
+      const selectedText = selection.toString().trim();
+      
+      // 检查是否在插件面板内选择
+      if (isSelectionInsidePanel(selection)) {
+        return; // 忽略插件内的选择
+      }
+      
+      if (selectedText && selectedText.length > 0) {
+        currentComment = selectedText;
+        selectedCommentEl.textContent = selectedText;
         selectedCommentEl.classList.remove('empty');
-        Logger.info('选中评论', { length: selection.length });
+        Logger.info('Selected comment', { length: selectedText.length });
       }
     });
 
@@ -554,12 +723,42 @@
     // 打开设置
     settingsBtn.addEventListener('click', async () => {
       const config = await loadConfig();
-      settingApiUrl.value = config.apiUrl;
-      settingApiKey.value = config.apiKey;
-      settingModel.value = config.modelName;
+      tempApis = JSON.parse(JSON.stringify(config.apis));
+      renderApiList(apiListEl, tempApis);
       settingPrompt.value = config.systemPrompt;
       settingKnowledge.value = config.knowledgeBase;
       settingsOverlay.style.display = 'flex';
+    });
+
+    // 添加 API
+    addApiBtn.addEventListener('click', () => {
+      tempApis.push({ name: '', url: '', key: '', model: '' });
+      renderApiList(apiListEl, tempApis);
+    });
+
+    // API 列表事件委托
+    apiListEl.addEventListener('input', (e) => {
+      if (e.target.classList.contains('form-input')) {
+        const index = parseInt(e.target.dataset.index);
+        const field = e.target.dataset.field;
+        if (tempApis[index] && field) {
+          tempApis[index][field] = e.target.value;
+          if (field === 'name') {
+            const nameSpan = e.target.closest('.api-item').querySelector('.api-item-name');
+            if (nameSpan) nameSpan.textContent = e.target.value || 'Unnamed API';
+          }
+        }
+      }
+    });
+
+    apiListEl.addEventListener('click', (e) => {
+      if (e.target.classList.contains('api-item-delete')) {
+        const index = parseInt(e.target.dataset.index);
+        if (confirm(`Delete "${tempApis[index]?.name || 'Unnamed API'}"?`)) {
+          tempApis.splice(index, 1);
+          renderApiList(apiListEl, tempApis);
+        }
+      }
     });
 
     // 关闭设置
@@ -574,31 +773,44 @@
 
     // 保存设置
     settingsSave.addEventListener('click', async () => {
+      const config = await loadConfig();
+      const validApis = tempApis.filter(api => api.url && api.key);
+      if (validApis.length === 0 && tempApis.length > 0) {
+        showToast('Please complete at least one API (URL and Key)');
+        return;
+      }
+      
+      let newActiveIndex = config.activeApiIndex;
+      if (newActiveIndex >= validApis.length) {
+        newActiveIndex = 0;
+      }
+
       await saveConfig({
-        apiUrl: settingApiUrl.value.trim(),
-        apiKey: settingApiKey.value.trim(),
-        modelName: settingModel.value.trim(),
+        apis: validApis,
+        activeApiIndex: newActiveIndex,
         systemPrompt: settingPrompt.value.trim(),
         knowledgeBase: settingKnowledge.value.trim()
       });
-      Logger.info('设置已保存');
-      showToast('设置已保存');
+      
+      await refreshApiSelector();
+      Logger.info('Settings saved', { apiCount: validApis.length });
+      showToast('Settings saved');
       closeSettings();
     });
 
     // 清除所有数据
     settingsClear.addEventListener('click', async () => {
-      if (confirm('确定要清除所有数据吗？\n\n这将删除您保存的 API Key、API 地址、模型名称、提示词和知识库。\n\n此操作不可恢复！')) {
+      if (confirm('Delete all data?\n\nThis will remove all API configs, prompts, and knowledge base.\n\nThis cannot be undone!')) {
         await new Promise((resolve) => {
           chrome.storage.local.clear(resolve);
         });
-        settingApiUrl.value = '';
-        settingApiKey.value = '';
-        settingModel.value = DEFAULT_CONFIG.modelName;
+        tempApis = [];
+        renderApiList(apiListEl, tempApis);
         settingPrompt.value = DEFAULT_CONFIG.systemPrompt;
         settingKnowledge.value = '';
-        Logger.info('所有数据已清除');
-        showToast('所有数据已清除');
+        await refreshApiSelector();
+        Logger.info('All data cleared');
+        showToast('All data cleared');
         closeSettings();
       }
     });
@@ -621,10 +833,10 @@
 
     // 清空日志
     logClear.addEventListener('click', () => {
-      if (confirm('确定要清空所有日志吗？')) {
+      if (confirm('Clear all logs?')) {
         Logger.clear();
         renderLogs(logContent);
-        showToast('日志已清空');
+        showToast('Logs cleared');
       }
     });
 
@@ -638,19 +850,19 @@
       a.download = `meta-reply-log-${new Date().toISOString().slice(0,10)}.txt`;
       a.click();
       URL.revokeObjectURL(url);
-      showToast('日志已导出');
+      showToast('Logs exported');
     });
 
     // 生成回复
     generateBtn.addEventListener('click', async () => {
       if (!currentComment) {
-        showToast('请先选中评论文字');
+        showToast('Please select comment text first');
         return;
       }
 
       const config = await loadConfig();
-      if (!config.apiUrl || !config.apiKey) {
-        showToast('请先在设置中配置 API 信息');
+      if (!config.apis || config.apis.length === 0) {
+        showToast('Please add API in settings');
         settingsBtn.click();
         return;
       }
@@ -669,20 +881,24 @@
         const aiResponse = await callAI(config, currentComment, false, '', (status) => {
           Progress.update(status);
         });
-        const elapsed = Progress.stop();
-        currentIsEnglish = aiResponse.isEnglish;
-        renderResult(resultArea, aiResponse);
-        copyBtn.style.display = 'block';
-        revisionSection.style.display = 'block';
-        revisionButtons.style.display = 'flex';
-        revisionInput.value = '';
-        Logger.info('生成完成', { elapsed: elapsed + 's' });
+        const elapsed = Progress.success('Generated successfully');
+        
+        // 延迟一下再显示结果，让用户看到成功提示
+        setTimeout(() => {
+          renderResult(resultArea, aiResponse);
+          copyBtn.style.display = 'block';
+          revisionSection.style.display = 'block';
+          revisionButtons.style.display = 'flex';
+          revisionInput.value = '';
+        }, 500);
+        
+        Logger.info('Generation complete', { elapsed: elapsed + 's', usedApi: aiResponse.usedApi });
       } catch (error) {
         Progress.stop();
         if (error.name === 'AbortError') {
-          resultArea.innerHTML = `<div class="error-message">⏹️ 已停止生成</div>`;
+          resultArea.innerHTML = `<div class="error-message">⏹️ Stopped</div>`;
         } else {
-          Logger.error('生成失败', { error: error.message });
+          Logger.error('Generation failed', { error: error.message });
           resultArea.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
         }
       } finally {
@@ -699,14 +915,14 @@
       isGenerating = false;
       generateBtn.style.display = 'block';
       abortBtn.style.display = 'none';
-      showToast('已停止生成');
+      showToast('Stopped');
     });
 
     // 根据意见修改回复
     reviseBtn.addEventListener('click', async () => {
       const revisionNote = revisionInput.value.trim();
       if (!revisionNote) {
-        showToast('请输入修改意见');
+        showToast('Please enter revision notes');
         return;
       }
 
@@ -714,7 +930,7 @@
 
       isGenerating = true;
       reviseBtn.disabled = true;
-      reviseBtn.textContent = '修改中...';
+      reviseBtn.textContent = 'Revising...';
       copyBtn.style.display = 'none';
 
       Progress.start(resultArea);
@@ -723,44 +939,48 @@
         const aiResponse = await callAI(config, currentComment, true, revisionNote, (status) => {
           Progress.update(status);
         });
-        const elapsed = Progress.stop();
-        renderResult(resultArea, aiResponse);
-        copyBtn.style.display = 'block';
-        revisionInput.value = '';
-        Logger.info('修改完成', { elapsed: elapsed + 's' });
-        showToast('回复已更新');
+        const elapsed = Progress.success('Revised successfully');
+        
+        setTimeout(() => {
+          renderResult(resultArea, aiResponse);
+          copyBtn.style.display = 'block';
+          revisionInput.value = '';
+        }, 500);
+        
+        Logger.info('Revision complete', { elapsed: elapsed + 's', usedApi: aiResponse.usedApi });
+        showToast('Reply updated');
       } catch (error) {
         Progress.stop();
         if (error.name === 'AbortError') {
-          resultArea.innerHTML = `<div class="error-message">⏹️ 已停止生成</div>`;
+          resultArea.innerHTML = `<div class="error-message">⏹️ Stopped</div>`;
         } else {
-          Logger.error('修改失败', { error: error.message });
+          Logger.error('Revision failed', { error: error.message });
           resultArea.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
         }
       } finally {
         isGenerating = false;
         reviseBtn.disabled = false;
-        reviseBtn.textContent = '根据意见修改';
+        reviseBtn.textContent = 'Revise';
       }
     });
 
     // 复制回复
     copyBtn.addEventListener('click', async () => {
-      const reply = getReplyContent(resultArea, currentIsEnglish);
+      const reply = getReplyContent(resultArea);
       if (reply) {
         await navigator.clipboard.writeText(reply);
-        Logger.info('复制回复');
-        showToast('已复制到剪贴板');
-        copyBtn.textContent = '已复制 ✓';
+        Logger.info('Copied reply');
+        showToast('Copied to clipboard');
+        copyBtn.textContent = 'Copied ✓';
         copyBtn.classList.add('btn-success');
         setTimeout(() => {
-          copyBtn.textContent = '复制回复';
+          copyBtn.textContent = 'Copy Reply';
           copyBtn.classList.remove('btn-success');
         }, 2000);
       }
     });
 
-    Logger.info('插件初始化完成');
+    Logger.info('Plugin ready');
   }
 
   // 启动
