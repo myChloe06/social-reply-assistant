@@ -17,6 +17,9 @@
 - 如果是投诉，表示歉意并提供解决方案`
   };
 
+  // 对话历史（用于修改回复）
+  let conversationHistory = [];
+
   // 创建主面板
   function createPanel() {
     const panel = document.createElement('div');
@@ -38,9 +41,16 @@
           <div class="section-label">🤖 AI 回复</div>
           <div id="result-area"></div>
         </div>
+        <div class="section" id="revision-section" style="display: none;">
+          <div class="section-label">✏️ 修改意见</div>
+          <textarea class="revision-input" id="revision-input" placeholder="输入修改意见，例如：语气再热情一点、加上优惠信息、更简短一些..."></textarea>
+        </div>
         <div class="button-group">
           <button class="btn btn-primary" id="generate-btn">生成回复</button>
           <button class="btn btn-secondary" id="copy-btn" style="display: none;">复制回复</button>
+        </div>
+        <div class="button-group" id="revision-buttons" style="display: none;">
+          <button class="btn btn-primary" id="revise-btn">根据意见修改</button>
         </div>
       </div>
     `;
@@ -82,6 +92,8 @@
           </div>
         </div>
         <div class="settings-footer">
+          <button class="btn btn-danger" id="settings-clear">🗑️ 清除所有数据</button>
+          <div style="flex: 1;"></div>
           <button class="btn btn-secondary" id="settings-cancel">取消</button>
           <button class="btn btn-primary" id="settings-save">保存设置</button>
         </div>
@@ -134,18 +146,31 @@
   }
 
   // 调用 AI API
-  async function callAI(config, comment) {
+  async function callAI(config, comment, isRevision = false, revisionNote = '') {
     const isEng = isEnglish(comment);
     
-    let userPrompt;
-    if (isEng) {
-      userPrompt = `请根据以下评论生成回复：
+    let messages = [
+      { role: 'system', content: config.systemPrompt }
+    ];
+
+    if (isRevision && conversationHistory.length > 0) {
+      // 修改模式：带上之前的对话历史
+      messages = messages.concat(conversationHistory);
+      messages.push({
+        role: 'user',
+        content: `请根据以下修改意见调整回复：\n\n修改意见：${revisionNote}\n\n请保持之前的输出格式。`
+      });
+    } else {
+      // 首次生成
+      let userPrompt;
+      if (isEng) {
+        userPrompt = `请根据以下评论生成回复：
 
 评论内容：${comment}
 
 请直接输出回复内容，不需要任何解释。`;
-    } else {
-      userPrompt = `请根据以下评论生成回复。由于评论不是英语，请按以下格式输出：
+      } else {
+        userPrompt = `请根据以下评论生成回复。由于评论不是英语，请按以下格式输出：
 
 评论内容：${comment}
 
@@ -153,6 +178,8 @@
 【评论翻译】（将评论翻译成中文）
 【回复内容】（用评论的原始语言回复）
 【回复翻译】（将回复翻译成中文）`;
+      }
+      messages.push({ role: 'user', content: userPrompt });
     }
 
     const response = await fetch(config.apiUrl, {
@@ -163,10 +190,7 @@
       },
       body: JSON.stringify({
         model: config.modelName,
-        messages: [
-          { role: 'system', content: config.systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
+        messages: messages,
         temperature: 0.7
       })
     });
@@ -177,8 +201,25 @@
     }
 
     const data = await response.json();
+    const assistantMessage = data.choices[0].message.content;
+
+    // 更新对话历史
+    if (!isRevision) {
+      // 首次生成，重置历史
+      conversationHistory = [
+        messages[messages.length - 1], // user message
+        { role: 'assistant', content: assistantMessage }
+      ];
+    } else {
+      // 修改模式，追加历史
+      conversationHistory.push(
+        { role: 'user', content: `请根据以下修改意见调整回复：\n\n修改意见：${revisionNote}\n\n请保持之前的输出格式。` },
+        { role: 'assistant', content: assistantMessage }
+      );
+    }
+
     return {
-      content: data.choices[0].message.content,
+      content: assistantMessage,
       isEnglish: isEng
     };
   }
@@ -264,10 +305,17 @@
     const settingsBtn = panel.querySelector('.settings-btn');
     const collapseBtn = panel.querySelector('.collapse-btn');
 
+    // 修改意见相关元素
+    const revisionSection = document.getElementById('revision-section');
+    const revisionInput = document.getElementById('revision-input');
+    const revisionButtons = document.getElementById('revision-buttons');
+    const reviseBtn = document.getElementById('revise-btn');
+
     // 设置面板元素
     const settingsClose = document.getElementById('settings-close');
     const settingsCancel = document.getElementById('settings-cancel');
     const settingsSave = document.getElementById('settings-save');
+    const settingsClear = document.getElementById('settings-clear');
     const settingApiUrl = document.getElementById('setting-api-url');
     const settingApiKey = document.getElementById('setting-api-key');
     const settingModel = document.getElementById('setting-model');
@@ -332,6 +380,22 @@
       closeSettings();
     });
 
+    // 清除所有数据
+    settingsClear.addEventListener('click', async () => {
+      if (confirm('确定要清除所有数据吗？\n\n这将删除您保存的 API Key、API 地址、模型名称和提示词。\n\n此操作不可恢复！')) {
+        await new Promise((resolve) => {
+          chrome.storage.local.clear(resolve);
+        });
+        // 清空表单
+        settingApiUrl.value = '';
+        settingApiKey.value = '';
+        settingModel.value = DEFAULT_CONFIG.modelName;
+        settingPrompt.value = DEFAULT_CONFIG.systemPrompt;
+        showToast('所有数据已清除');
+        closeSettings();
+      }
+    });
+
     // 生成回复
     generateBtn.addEventListener('click', async () => {
       if (!currentComment) {
@@ -352,17 +416,53 @@
       resultSection.style.display = 'block';
       resultArea.innerHTML = `<div class="loading"><div class="loading-spinner"></div><span>正在生成回复...</span></div>`;
       copyBtn.style.display = 'none';
+      revisionSection.style.display = 'none';
+      revisionButtons.style.display = 'none';
 
       try {
-        const aiResponse = await callAI(config, currentComment);
+        const aiResponse = await callAI(config, currentComment, false);
         currentIsEnglish = aiResponse.isEnglish;
         renderResult(resultArea, aiResponse);
         copyBtn.style.display = 'block';
+        // 显示修改意见区域
+        revisionSection.style.display = 'block';
+        revisionButtons.style.display = 'flex';
+        revisionInput.value = '';
       } catch (error) {
         resultArea.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
       } finally {
         generateBtn.disabled = false;
         generateBtn.textContent = '生成回复';
+      }
+    });
+
+    // 根据意见修改回复
+    reviseBtn.addEventListener('click', async () => {
+      const revisionNote = revisionInput.value.trim();
+      if (!revisionNote) {
+        showToast('请输入修改意见');
+        return;
+      }
+
+      const config = await loadConfig();
+
+      // 显示加载状态
+      reviseBtn.disabled = true;
+      reviseBtn.textContent = '修改中...';
+      resultArea.innerHTML = `<div class="loading"><div class="loading-spinner"></div><span>正在根据意见修改...</span></div>`;
+      copyBtn.style.display = 'none';
+
+      try {
+        const aiResponse = await callAI(config, currentComment, true, revisionNote);
+        renderResult(resultArea, aiResponse);
+        copyBtn.style.display = 'block';
+        revisionInput.value = '';
+        showToast('回复已更新');
+      } catch (error) {
+        resultArea.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
+      } finally {
+        reviseBtn.disabled = false;
+        reviseBtn.textContent = '根据意见修改';
       }
     });
 

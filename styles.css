@@ -381,3 +381,36 @@
   font-size: 13px;
   margin-bottom: 16px;
 }
+
+/* 修改意见输入框 */
+.revision-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #dddfe2;
+  border-radius: 8px;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.revision-input:focus {
+  outline: none;
+  border-color: #1877f2;
+}
+
+.revision-input::placeholder {
+  color: #8a8d91;
+}
+
+/* 危险按钮（清除数据） */
+.btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+}
