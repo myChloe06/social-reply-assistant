@@ -818,3 +818,299 @@
   border-radius: 4px;
   display: inline-block;
 }
+
+/* 主题选择器 */
+.theme-selector {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 2px solid #e4e6eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.theme-option:hover {
+  border-color: #bcc0c4;
+}
+
+.theme-option input {
+  display: none;
+}
+
+.theme-option input:checked + .theme-preview {
+  box-shadow: 0 0 0 2px #1877f2;
+}
+
+.theme-option:has(input:checked) {
+  border-color: #1877f2;
+  background: #f0f7ff;
+}
+
+.theme-preview {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.theme-preview-blue {
+  background: linear-gradient(135deg, #4F9FFF, #1877F2);
+}
+
+.theme-preview-mono {
+  background: linear-gradient(135deg, #ffffff, #1c1e21);
+  border: 1px solid #e4e6eb;
+}
+
+.theme-preview-matcha {
+  background: linear-gradient(135deg, #7cb342, #558b2f);
+}
+
+.theme-preview-dark {
+  background: linear-gradient(135deg, #2d2d2d, #1a1a1a);
+}
+
+.theme-name {
+  font-size: 12px;
+  color: #1c1e21;
+}
+
+/* ==================== 主题变量 ==================== */
+
+/* 默认蓝主题 */
+#meta-reply-panel[data-theme="blue"],
+.settings-overlay[data-theme="blue"] .settings-panel,
+.settings-overlay[data-theme="blue"] {
+  --theme-primary: #1877f2;
+  --theme-primary-hover: #166fe5;
+  --theme-header-bg: linear-gradient(135deg, #4F9FFF, #1877F2);
+  --theme-header-text: #ffffff;
+  --theme-bg: #ffffff;
+  --theme-text: #1c1e21;
+  --theme-text-secondary: #65676b;
+  --theme-border: #e4e6eb;
+  --theme-input-bg: #ffffff;
+  --theme-section-bg: #f0f2f5;
+  --theme-collapsed-bg: linear-gradient(135deg, #4F9FFF, #1877F2);
+}
+
+/* 纯净黑白主题 */
+#meta-reply-panel[data-theme="mono"],
+.settings-overlay[data-theme="mono"] .settings-panel,
+.settings-overlay[data-theme="mono"] {
+  --theme-primary: #1c1e21;
+  --theme-primary-hover: #000000;
+  --theme-header-bg: #1c1e21;
+  --theme-header-text: #ffffff;
+  --theme-bg: #ffffff;
+  --theme-text: #1c1e21;
+  --theme-text-secondary: #65676b;
+  --theme-border: #e4e6eb;
+  --theme-input-bg: #ffffff;
+  --theme-section-bg: #f5f5f5;
+  --theme-collapsed-bg: #1c1e21;
+}
+
+/* 抹茶绿主题 */
+#meta-reply-panel[data-theme="matcha"],
+.settings-overlay[data-theme="matcha"] .settings-panel,
+.settings-overlay[data-theme="matcha"] {
+  --theme-primary: #7cb342;
+  --theme-primary-hover: #689f38;
+  --theme-header-bg: linear-gradient(135deg, #8bc34a, #689f38);
+  --theme-header-text: #ffffff;
+  --theme-bg: #ffffff;
+  --theme-text: #1c1e21;
+  --theme-text-secondary: #65676b;
+  --theme-border: #c5e1a5;
+  --theme-input-bg: #ffffff;
+  --theme-section-bg: #f1f8e9;
+  --theme-collapsed-bg: linear-gradient(135deg, #8bc34a, #689f38);
+}
+
+/* 深色模式 */
+#meta-reply-panel[data-theme="dark"],
+.settings-overlay[data-theme="dark"] .settings-panel,
+.settings-overlay[data-theme="dark"] {
+  --theme-primary: #4dabf7;
+  --theme-primary-hover: #339af0;
+  --theme-header-bg: #2d2d2d;
+  --theme-header-text: #ffffff;
+  --theme-bg: #1a1a1a;
+  --theme-text: #e4e4e4;
+  --theme-text-secondary: #a0a0a0;
+  --theme-border: #404040;
+  --theme-input-bg: #2d2d2d;
+  --theme-section-bg: #252525;
+  --theme-collapsed-bg: #2d2d2d;
+}
+
+/* 应用主题变量到各元素 */
+#meta-reply-panel[data-theme] {
+  background: var(--theme-bg);
+}
+
+#meta-reply-panel[data-theme] .panel-header {
+  background: var(--theme-header-bg);
+}
+
+#meta-reply-panel[data-theme] .header-title {
+  color: var(--theme-header-text);
+}
+
+#meta-reply-panel[data-theme] .header-btn,
+#meta-reply-panel[data-theme] .collapse-btn {
+  color: var(--theme-header-text);
+}
+
+#meta-reply-panel[data-theme] .panel-content {
+  color: var(--theme-text);
+}
+
+#meta-reply-panel[data-theme] .section-label {
+  color: var(--theme-text);
+}
+
+#meta-reply-panel[data-theme] .section-box {
+  background: var(--theme-section-bg);
+  color: var(--theme-text);
+  border-color: var(--theme-border);
+}
+
+#meta-reply-panel[data-theme] .usage-hint {
+  background: var(--theme-section-bg);
+  color: var(--theme-text-secondary);
+}
+
+#meta-reply-panel[data-theme] .btn-primary {
+  background: var(--theme-primary);
+}
+
+#meta-reply-panel[data-theme] .btn-primary:hover {
+  background: var(--theme-primary-hover);
+}
+
+#meta-reply-panel[data-theme] .btn-secondary {
+  background: var(--theme-section-bg);
+  color: var(--theme-text);
+  border-color: var(--theme-border);
+}
+
+#meta-reply-panel[data-theme] .api-radio-label {
+  background: var(--theme-section-bg);
+  color: var(--theme-text);
+}
+
+#meta-reply-panel[data-theme] .api-radio-dot {
+  border-color: var(--theme-border);
+}
+
+#meta-reply-panel[data-theme] .api-radio-label input:checked + .api-radio-dot {
+  border-color: var(--theme-primary);
+  background: var(--theme-primary);
+}
+
+#meta-reply-panel[data-theme] .revision-input {
+  background: var(--theme-input-bg);
+  color: var(--theme-text);
+  border-color: var(--theme-border);
+}
+
+#meta-reply-panel[data-theme] .translation-block {
+  background: var(--theme-section-bg);
+  border-color: var(--theme-border);
+}
+
+#meta-reply-panel[data-theme] .translation-label {
+  color: var(--theme-text-secondary);
+}
+
+#meta-reply-panel[data-theme] .translation-content {
+  color: var(--theme-text);
+}
+
+#meta-reply-panel[data-theme].collapsed {
+  background: var(--theme-collapsed-bg);
+}
+
+/* 设置面板主题 */
+.settings-overlay[data-theme] .settings-panel {
+  background: var(--theme-bg);
+  color: var(--theme-text);
+}
+
+.settings-overlay[data-theme] .settings-header {
+  background: var(--theme-header-bg);
+  color: var(--theme-header-text);
+}
+
+.settings-overlay[data-theme] .settings-body {
+  color: var(--theme-text);
+}
+
+.settings-overlay[data-theme] .form-label {
+  color: var(--theme-text);
+}
+
+.settings-overlay[data-theme] .form-hint {
+  color: var(--theme-text-secondary);
+}
+
+.settings-overlay[data-theme] .form-input,
+.settings-overlay[data-theme] .form-textarea,
+.settings-overlay[data-theme] .form-select {
+  background: var(--theme-input-bg);
+  color: var(--theme-text);
+  border-color: var(--theme-border);
+}
+
+.settings-overlay[data-theme] .platform-config-area {
+  background: var(--theme-section-bg);
+  border-color: var(--theme-border);
+}
+
+.settings-overlay[data-theme] .api-item {
+  background: var(--theme-section-bg);
+}
+
+.settings-overlay[data-theme] .api-item-header {
+  background: var(--theme-border);
+}
+
+.settings-overlay[data-theme] .settings-footer {
+  border-color: var(--theme-border);
+}
+
+.settings-overlay[data-theme] .btn-primary {
+  background: var(--theme-primary);
+}
+
+.settings-overlay[data-theme] .btn-secondary {
+  background: var(--theme-section-bg);
+  color: var(--theme-text);
+}
+
+.settings-overlay[data-theme] .credits {
+  background: var(--theme-section-bg);
+  border-color: var(--theme-border);
+}
+
+.settings-overlay[data-theme] .credits-main {
+  color: var(--theme-text);
+}
+
+.settings-overlay[data-theme] .theme-option {
+  border-color: var(--theme-border);
+}
+
+.settings-overlay[data-theme] .theme-name {
+  color: var(--theme-text);
+}

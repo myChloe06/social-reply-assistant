@@ -1,6 +1,9 @@
-# Meta Business Suite 评论回复助手
+# Reply Assistant - AI评论回复助手
 
 一个AI驱动的Chrome扩展，帮助你快速生成专业的社交媒体评论回复。
+
+[![GitHub release](https://img.shields.io/github/v/release/myChloe06/social-reply-assistant)](https://github.com/myChloe06/social-reply-assistant/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## 功能特性
 
@@ -11,25 +14,38 @@
 - 📊 **对话历史**：保存对话历史，支持修改回复
 - 📋 **日志系统**：完整的操作日志记录
 
-## 安装方法
+## 📥 安装方法
 
-1. 下载本项目文件
-2. 打开Chrome浏览器，进入 `chrome://extensions/`
-3. 开启右上角的「开发者模式」
-4. 点击「加载已解压的扩展程序」
-5. 选择本项目文件夹
+### 方式1：从Release下载（推荐）
 
-## 使用说明
+1. 访问 [Releases页面](https://github.com/myChloe06/social-reply-assistant/releases/latest)
+2. 下载最新版本的 `reply-assistant-vX.X.X.zip` 文件
+3. 解压到任意文件夹
+4. 打开Chrome浏览器，访问 `chrome://extensions/`
+5. 开启右上角的「开发者模式」
+6. 点击「加载已解压的扩展程序」
+7. 选择解压的文件夹
+
+### 方式2：克隆仓库
+
+```bash
+git clone https://github.com/myChloe06/social-reply-assistant.git
+cd social-reply-assistant
+```
+
+然后按照方式1的步骤4-7操作
+
+## 🚀 使用说明
 
 ### 首次配置
 
-1. 安装扩展后，访问 [Meta Business Suite](https://business.facebook.com)
-2. 点击页面上的「AI助手配置」按钮
+1. 安装扩展后，点击浏览器工具栏的扩展图标
+2. 或者访问支持的网站，点击页面上的「AI助手配置」按钮
 3. 配置你的API信息：
-   - API地址
-   - API密钥
-   - 模型名称
-4. （可选）设置系统提示词和知识库内容
+   - **API地址**：OpenAI兼容的API端点
+   - **API密钥**：你的API密钥
+   - **模型名称**：使用的模型（如gpt-3.5-turbo）
+4. （可选）设置系统提示词和知识库内容，让AI更懂你的业务
 
 ### 生成回复
 
@@ -48,122 +64,52 @@
 3. 可以通过拖拽调整API优先级
 4. 使用「切换API」功能手动选择使用的API
 
-## 版本管理
+## 📋 更新日志
 
-### 查看版本历史
+查看所有版本的详细更新内容：[CHANGELOG.md](CHANGELOG.md)
 
-```bash
-# 查看所有版本标签
-git tag -l
+最新版本功能请访问 [Releases页面](https://github.com/myChloe06/social-reply-assistant/releases)
 
-# 查看版本差异
-git diff v5.0.0 v5.1.0
-
-# 切换到特定版本
-git checkout v5.1.0
-```
-
-### 更新到新版本
-
-当Claude给你新版本文件夹时：
-
-1. 将新版本文件复制到本仓库
-2. 更新 `manifest.json` 和 `content.js` 中的版本号
-3. 提交并打标签：
-```bash
-git add .
-git commit -m "Release v5.x.x - 变更说明"
-git tag v5.x.x
-git push origin master --tags
-```
-
-详细的版本管理说明请查看 [VERSION-GUIDE.md](VERSION-GUIDE.md)
-
-## 版本历史
-
-### 当前版本（Master分支）
-- **v5.1.1** (2025-12-10) - Bug修复版本
-- **v5.1.0** (2025-12-10) - 功能增强版本
-- **v5.0.0** (2025-12-10) - 初始发布版本
-  - AI驱动的评论回复生成
-  - 支持多API配置和自动故障切换
-  - 内置多语言翻译功能
-  - 完整的日志系统和进度管理
-
-### 历史版本（Archive分支）
-所有历史版本都已存档，可以通过分支和标签访问：
-
-- **v4.0.0** - 分支：`archive/v4.0` | 标签：`v4.0.0`
-- **v3.0.0** - 分支：`archive/v3.0` | 标签：`v3.0.0`
-- **v2.0.0** - 分支：`archive/v2.0` | 标签：`v2.0.0`
-- **v1.0.0** - 分支：`archive/v1.0` | 标签：`v1.0.0`
-
-#### 如何查看历史版本
-```bash
-# 查看所有版本
-git tag -l
-
-# 切换到特定版本
-git checkout archive/v1.0  # 或使用标签 git checkout v1.0.0
-
-# 查看某个版本的代码
-git show v2.0.0:content.js
-
-# 比较两个版本的差异
-git diff v1.0.0 v2.0.0
-```
-
-查看完整变更日志：[CHANGELOG.md](CHANGELOG.md)
-
-## 技术栈
+## 🛠️ 技术栈
 
 - Chrome Extension Manifest V3
 - Vanilla JavaScript
 - Chrome Storage API
 - OpenAI Compatible API
 
-## 文件结构
+## ❓ 常见问题
 
-```
-meta-reply-assistant/
-├── content.js          # 主功能脚本
-├── styles.css          # 样式文件
-├── manifest.json       # 扩展配置
-├── icons/              # 图标资源
-│   ├── icon16.png
-│   ├── icon48.png
-│   └── icon128.png
-├── README.md           # 使用说明（本文件）
-├── CHANGELOG.md        # 变更日志
-├── VERSION-GUIDE.md    # 版本管理指南
-└── update-version.bat  # 版本更新脚本
-```
+### API连接失败怎么办？
 
-## 常见问题
+- 检查API地址是否正确（需要完整的URL，包括https://）
+- 确认API密钥有效且有足够额度
+- 点击「查看日志」按钮查看详细错误信息
 
-### API连接失败
-
-- 检查API地址是否正确
-- 确认API密钥有效
-- 查看日志了解详细错误信息
-
-### 回复生成很慢
+### 回复生成很慢？
 
 - 这取决于你使用的AI模型和API响应速度
 - 可以尝试切换到其他配置的API
+- 或者选择响应更快的模型
 
-### 如何查看日志
+### 支持哪些网站？
 
-点击「查看日志」按钮，可以看到所有操作记录和错误信息。
+目前支持所有https和http网站，特别针对Meta Business Suite等社交媒体管理平台优化。
 
-## 贡献
+## 🤝 贡献
 
-欢迎提交Issue和Pull Request！
+欢迎提交Issue和Pull Request！如果你有好的想法或发现了bug，请不要犹豫。
 
-## 许可证
+## 📄 许可证
 
-MIT License
+本项目采用 MIT License 开源协议。
 
-## 联系方式
+## 👤 作者
 
-GitHub: [https://github.com/myChloe06/social-reply-assistant](https://github.com/myChloe06/social-reply-assistant)
+**Chloe**
+
+- 📧 邮箱：moyong06@foxmail.com
+- 💻 GitHub：[@myChloe06](https://github.com/myChloe06)
+
+---
+
+⭐ 如果觉得这个项目有帮助，欢迎给个Star支持一下！

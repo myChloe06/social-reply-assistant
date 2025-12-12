@@ -3,7 +3,7 @@
 (function() {
   'use strict';
 
-  const VERSION = '5.4.0';
+  const VERSION = '5.5.0';
 
   // 预设平台列表
   const PRESET_PLATFORMS = [
@@ -21,7 +21,16 @@
     apis: [],
     activeApiIndex: 0,
     platforms: {},  // { platformId: { prompt: '', knowledge: '' } }
-    customPlatforms: []  // [{ id: 'custom_xxx', name: 'xxx', domain: 'xxx.com' }]
+    customPlatforms: [],  // [{ id: 'custom_xxx', name: 'xxx', domain: 'xxx.com' }]
+    theme: 'blue'  // blue, mono, matcha, dark
+  };
+
+  // 主题列表
+  const THEMES = {
+    blue: { name: '默认蓝', icon: '🔵' },
+    mono: { name: '纯净黑白', icon: '⬛' },
+    matcha: { name: '抹茶绿', icon: '🍵' },
+    dark: { name: '深色模式', icon: '🌙' }
   };
 
   const DEFAULT_PROMPT = `You are a professional social media customer service assistant.
@@ -314,6 +323,31 @@ Response requirements:
             <div class="api-list" id="api-list"></div>
             <button class="btn btn-secondary btn-small" id="add-api-btn">+ Add API</button>
           </div>
+          <div class="form-group">
+            <label class="form-label">🎨 Theme</label>
+            <div class="theme-selector" id="theme-selector">
+              <label class="theme-option" data-theme="blue">
+                <input type="radio" name="theme" value="blue">
+                <span class="theme-preview theme-preview-blue"></span>
+                <span class="theme-name">🔵 默认蓝</span>
+              </label>
+              <label class="theme-option" data-theme="mono">
+                <input type="radio" name="theme" value="mono">
+                <span class="theme-preview theme-preview-mono"></span>
+                <span class="theme-name">⬛ 纯净黑白</span>
+              </label>
+              <label class="theme-option" data-theme="matcha">
+                <input type="radio" name="theme" value="matcha">
+                <span class="theme-preview theme-preview-matcha"></span>
+                <span class="theme-name">🍵 抹茶绿</span>
+              </label>
+              <label class="theme-option" data-theme="dark">
+                <input type="radio" name="theme" value="dark">
+                <span class="theme-preview theme-preview-dark"></span>
+                <span class="theme-name">🌙 深色模式</span>
+              </label>
+            </div>
+          </div>
         </div>
         <div class="settings-footer">
           <button class="btn btn-danger" id="settings-clear">🗑️ Clear All</button>
@@ -380,15 +414,33 @@ Response requirements:
   // 加载配置
   async function loadConfig() {
     return new Promise((resolve) => {
-      chrome.storage.local.get(['apis', 'activeApiIndex', 'platforms', 'customPlatforms'], (result) => {
+      chrome.storage.local.get(['apis', 'activeApiIndex', 'platforms', 'customPlatforms', 'theme'], (result) => {
         resolve({
           apis: result.apis || DEFAULT_CONFIG.apis,
           activeApiIndex: result.activeApiIndex || DEFAULT_CONFIG.activeApiIndex,
           platforms: result.platforms || DEFAULT_CONFIG.platforms,
-          customPlatforms: result.customPlatforms || DEFAULT_CONFIG.customPlatforms
+          customPlatforms: result.customPlatforms || DEFAULT_CONFIG.customPlatforms,
+          theme: result.theme || DEFAULT_CONFIG.theme
         });
       });
     });
+  }
+
+  // 应用主题
+  function applyTheme(theme) {
+    const panel = document.getElementById('meta-reply-panel');
+    const settingsOverlay = document.getElementById('settings-overlay');
+    const logOverlay = document.getElementById('log-overlay');
+    
+    if (panel) {
+      panel.setAttribute('data-theme', theme);
+    }
+    if (settingsOverlay) {
+      settingsOverlay.setAttribute('data-theme', theme);
+    }
+    if (logOverlay) {
+      logOverlay.setAttribute('data-theme', theme);
+    }
   }
 
   // 获取所有平台（预设 + 自定义）
@@ -821,6 +873,9 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     const creditsInfoBtn = document.getElementById('credits-info-btn');
     const creditsDetail = document.getElementById('credits-detail');
 
+    // 主题选择器
+    const themeSelector = document.getElementById('theme-selector');
+
     let currentComment = '';
     let isGenerating = false;
     let tempApis = [];
@@ -828,6 +883,7 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     let tempCustomPlatforms = [];  // 临时自定义平台
     let currentPlatform = null;  // 当前匹配的平台
     let selectedPlatformId = null;  // 设置中选中的平台
+    let currentTheme = 'blue';  // 当前主题
 
     // 渲染平台下拉选择
     function renderPlatformSelect(config) {
@@ -840,6 +896,9 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     async function refreshCurrentPlatform() {
       const config = await loadConfig();
       currentPlatform = matchPlatform(config);
+      currentTheme = config.theme || 'blue';
+      applyTheme(currentTheme);
+      
       if (currentPlatform) {
         currentPlatformEl.textContent = currentPlatform.name;
         panel.style.display = 'flex';
@@ -908,6 +967,12 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       platformConfigArea.style.display = 'none';
       customPlatformInput.style.display = 'none';
       selectedPlatformId = null;
+      
+      // 设置当前主题选中状态
+      const themeRadios = themeSelector.querySelectorAll('input[name="theme"]');
+      themeRadios.forEach(radio => {
+        radio.checked = radio.value === (config.theme || 'blue');
+      });
       
       settingsOverlay.style.display = 'flex';
     });
@@ -1074,16 +1139,20 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
         newActiveIndex = 0;
       }
 
+      // 获取选中的主题
+      const selectedTheme = themeSelector.querySelector('input[name="theme"]:checked')?.value || 'blue';
+
       await saveConfig({
         apis: validApis,
         activeApiIndex: newActiveIndex,
         platforms: tempPlatforms,
-        customPlatforms: tempCustomPlatforms
+        customPlatforms: tempCustomPlatforms,
+        theme: selectedTheme
       });
       
       await refreshApiSelector();
       await refreshCurrentPlatform();
-      Logger.info('Settings saved', { apiCount: validApis.length, platformCount: Object.keys(tempPlatforms).length });
+      Logger.info('Settings saved', { apiCount: validApis.length, platformCount: Object.keys(tempPlatforms).length, theme: selectedTheme });
       showToast('Settings saved');
       closeSettings();
     });
