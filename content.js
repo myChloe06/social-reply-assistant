@@ -3,7 +3,7 @@
 (function() {
   'use strict';
 
-  const VERSION = '5.2.1';
+  const VERSION = '5.4.0';
 
   // 预设平台列表
   const PRESET_PLATFORMS = [
@@ -41,6 +41,38 @@ Response requirements:
 
   // 插件面板元素引用
   let panelElement = null;
+
+  // 消息监听（来自 popup）
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'togglePanel') {
+      if (panelElement) {
+        panelElement.style.display = message.show ? 'flex' : 'none';
+        if (message.show) {
+          panelElement.classList.remove('collapsed');
+        }
+      } else {
+        // 面板还没创建，等待初始化
+        initPanel(true);
+      }
+    } else if (message.action === 'openSettings') {
+      if (panelElement) {
+        panelElement.style.display = 'flex';
+        panelElement.classList.remove('collapsed');
+      } else {
+        initPanel(true);
+      }
+      // 打开设置面板
+      setTimeout(() => {
+        const settingsBtn = document.querySelector('#meta-reply-panel .settings-btn');
+        if (settingsBtn) settingsBtn.click();
+      }, 100);
+    } else if (message.action === 'refreshPlatform') {
+      // 重新检查平台匹配
+      location.reload();
+    }
+    sendResponse({ success: true });
+    return true;
+  });
 
   // ==================== 日志系统 ====================
   const Logger = {
@@ -289,6 +321,16 @@ Response requirements:
           <button class="btn btn-secondary" id="settings-cancel">Cancel</button>
           <button class="btn btn-primary" id="settings-save">Save</button>
         </div>
+        <div class="credits">
+          <span class="credits-main">Made by Chloe ❤️</span>
+          <span class="credits-info-btn" id="credits-info-btn" title="About">ℹ️</span>
+          <div class="credits-detail" id="credits-detail">
+            <div class="credits-detail-title">Reply Assistant v${VERSION}</div>
+            <div class="credits-detail-desc">AI-powered comment reply tool</div>
+            <div class="credits-detail-author">Author: Chloe</div>
+            <div class="credits-detail-email">Email: moyong06@foxmail.com</div>
+          </div>
+        </div>
       </div>
     `;
     document.body.appendChild(overlay);
@@ -436,7 +478,7 @@ Response requirements:
       messages = messages.concat(conversationHistory);
       messages.push({
         role: 'user',
-        content: `Please revise the reply based on these notes:\n\nRevision notes: ${revisionNote}\n\nKeep the same output format as before.`
+        content: `Please revise the reply based on these notes:\n\nRevision notes: ${revisionNote}\n\nIMPORTANT: Keep the same output format and language as before. The reply language must match the original comment's language, regardless of what language the revision notes are in.`
       });
     } else {
       // Let AI detect language and decide output format
@@ -698,9 +740,29 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
   }
 
   // 主初始化函数
-  async function init() {
+  let panelInitialized = false;
+  
+  async function initPanel(forceShow = false) {
+    if (panelInitialized) {
+      if (forceShow && panelElement) {
+        panelElement.style.display = 'flex';
+      }
+      return;
+    }
+    panelInitialized = true;
+    
     Logger.info(`Plugin initialized v${VERSION}`);
     await Logger.load();
+
+    // 检查当前网站是否已配置
+    const config = await loadConfig();
+    const currentPlatformMatch = matchPlatform(config);
+    
+    // 如果未配置且不是强制显示，不创建面板
+    if (!currentPlatformMatch && !forceShow) {
+      Logger.info('Site not configured, panel hidden');
+      return;
+    }
 
     // 创建面板
     const panel = createPanel();
@@ -754,6 +816,10 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     const logClear = document.getElementById('log-clear');
     const logExport = document.getElementById('log-export');
     const logContent = document.getElementById('log-content');
+
+    // 署名信息
+    const creditsInfoBtn = document.getElementById('credits-info-btn');
+    const creditsDetail = document.getElementById('credits-detail');
 
     let currentComment = '';
     let isGenerating = false;
@@ -818,7 +884,7 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     collapseBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       panel.classList.toggle('collapsed');
-      collapseBtn.textContent = panel.classList.contains('collapsed') ? '💬' : '−';
+      collapseBtn.textContent = panel.classList.contains('collapsed') ? '' : '−';
     });
 
     panel.addEventListener('click', () => {
@@ -944,6 +1010,19 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     addApiBtn.addEventListener('click', () => {
       tempApis.push({ name: '', url: '', key: '', model: '' });
       renderApiList(apiListEl, tempApis);
+    });
+
+    // 署名信息按钮
+    creditsInfoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      creditsDetail.classList.toggle('show');
+    });
+
+    // 点击其他地方关闭署名详情
+    document.addEventListener('click', (e) => {
+      if (!creditsDetail.contains(e.target) && e.target !== creditsInfoBtn) {
+        creditsDetail.classList.remove('show');
+      }
     });
 
     // API 列表事件委托
@@ -1207,8 +1286,8 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
 
   // 启动
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => initPanel(false));
   } else {
-    init();
+    initPanel(false);
   }
 })();
