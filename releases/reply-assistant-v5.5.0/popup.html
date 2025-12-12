@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reply Assistant</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #fff;
+    }
+    
+    .popup-header {
+      background: linear-gradient(135deg, #4F9FFF, #1877F2);
+      color: white;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .popup-logo {
+      width: 32px;
+      height: 32px;
+    }
+    
+    .popup-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    
+    .popup-version {
+      font-size: 11px;
+      opacity: 0.8;
+    }
+    
+    .popup-content {
+      padding: 16px;
+    }
+    
+    .current-site {
+      background: #f0f2f5;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .current-site-label {
+      font-size: 12px;
+      color: #65676b;
+      margin-bottom: 4px;
+    }
+    
+    .current-site-domain {
+      font-size: 14px;
+      font-weight: 500;
+      color: #1c1e21;
+      word-break: break-all;
+    }
+    
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .status-configured {
+      background: #e7f5e9;
+      color: #1e7e34;
+    }
+    
+    .status-not-configured {
+      background: #fff3e0;
+      color: #e65100;
+    }
+    
+    .status-icon {
+      font-size: 18px;
+    }
+    
+    .status-text {
+      font-size: 13px;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 8px;
+    }
+    
+    .btn-primary {
+      background: #1877f2;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #166fe5;
+    }
+    
+    .btn-secondary {
+      background: #e4e6eb;
+      color: #1c1e21;
+    }
+    
+    .btn-secondary:hover {
+      background: #d8dadf;
+    }
+    
+    .btn-danger {
+      background: #ffebe9;
+      color: #d32f2f;
+      border: 1px solid #ffcdd2;
+    }
+    
+    .btn-danger:hover {
+      background: #ffcdd2;
+    }
+    
+    .divider {
+      height: 1px;
+      background: #e4e6eb;
+      margin: 16px 0;
+    }
+    
+    .platform-info {
+      font-size: 13px;
+      color: #65676b;
+      margin-bottom: 8px;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .credits {
+      text-align: center;
+      padding: 12px 16px;
+      border-top: 1px solid #e4e6eb;
+      background: #f7f8fa;
+      position: relative;
+    }
+    
+    .credits-main {
+      font-size: 12px;
+      color: #1c1e21;
+    }
+    
+    .credits-info-btn {
+      cursor: pointer;
+      margin-left: 4px;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    
+    .credits-info-btn:hover {
+      opacity: 1;
+    }
+    
+    .credits-detail {
+      display: none;
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1c1e21;
+      color: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 11px;
+      text-align: left;
+      min-width: 180px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      margin-bottom: 8px;
+    }
+    
+    .credits-detail::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: #1c1e21;
+    }
+    
+    .credits-detail.show {
+      display: block;
+    }
+    
+    .credits-detail-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .credits-detail-desc {
+      color: #a0a0a0;
+      margin-bottom: 8px;
+    }
+    
+    .credits-detail-author,
+    .credits-detail-email {
+      color: #d0d0d0;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="popup-header">
+    <svg class="popup-logo" viewBox="0 0 128 128">
+      <defs>
+        <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#4F9FFF"/>
+          <stop offset="100%" style="stop-color:#1877F2"/>
+        </linearGradient>
+      </defs>
+      <circle cx="64" cy="64" r="60" fill="white"/>
+      <path d="M32 40 h50 a12 12 0 0 1 12 12 v28 a12 12 0 0 1 -12 12 h-25 l-12 14 v-14 h-13 a12 12 0 0 1 -12 -12 v-28 a12 12 0 0 1 12 -12z" fill="#1877F2"/>
+      <path d="M62 48 L52 68 h12 l-8 20 22-26 h-14 l10-14z" fill="#FFB800"/>
+    </svg>
+    <div>
+      <div class="popup-title">Reply Assistant</div>
+      <div class="popup-version">v5.5.0</div>
+    </div>
+  </div>
+  
+  <div class="popup-content">
+    <div class="current-site">
+      <div class="current-site-label">Current Site</div>
+      <div class="current-site-domain" id="current-domain">-</div>
+    </div>
+    
+    <div id="status-configured" class="status status-configured hidden">
+      <span class="status-icon">✓</span>
+      <span class="status-text">Platform configured: <strong id="platform-name"></strong></span>
+    </div>
+    
+    <div id="status-not-configured" class="status status-not-configured hidden">
+      <span class="status-icon">○</span>
+      <span class="status-text">This site is not configured</span>
+    </div>
+    
+    <button class="btn btn-primary" id="btn-open-panel">Open Reply Panel</button>
+    
+    <div id="add-section" class="hidden">
+      <button class="btn btn-secondary" id="btn-add-site">+ Add This Site</button>
+    </div>
+    
+    <div class="divider"></div>
+    
+    <button class="btn btn-secondary" id="btn-settings">⚙️ Open Settings</button>
+  </div>
+  
+  <div class="credits">
+    <span class="credits-main">Made by Chloe ❤️</span>
+    <span class="credits-info-btn" id="credits-info-btn" title="About">ℹ️</span>
+    <div class="credits-detail" id="credits-detail">
+      <div class="credits-detail-title">Reply Assistant v5.5.0</div>
+      <div class="credits-detail-desc">AI-powered comment reply tool</div>
+      <div class="credits-detail-author">Author: Chloe</div>
+      <div class="credits-detail-email">Email: moyong06@foxmail.com</div>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
