@@ -323,71 +323,117 @@ IMPORTANT REQUIREMENTS:
           <span class="settings-title">⚙️ Settings</span>
           <button class="settings-close" id="settings-close">×</button>
         </div>
+
+        <!-- Tab Navigation -->
+        <div class="settings-tabs">
+          <button class="tab-button active" data-tab="platform">Platform</button>
+          <button class="tab-button" data-tab="ai-prompts">AI Prompts</button>
+          <button class="tab-button" data-tab="api">API</button>
+          <button class="tab-button" data-tab="theme">Theme</button>
+        </div>
+
+        <!-- Tab Contents -->
         <div class="settings-body">
-          <div class="form-group">
-            <label class="form-label">📍 Platform Configuration</label>
-            <div class="platform-select-row">
-              <select class="form-select" id="platform-select">
-                <option value="">-- Select Platform --</option>
-              </select>
-              <button class="btn btn-secondary btn-small" id="add-custom-platform-btn">+ Custom</button>
-            </div>
-            <div id="custom-platform-input" class="custom-platform-input" style="display: none;">
-              <input type="text" class="form-input" id="custom-platform-name" placeholder="Platform name, e.g., My Store">
-              <input type="text" class="form-input" id="custom-platform-domain" placeholder="Domain, e.g., mystore.com">
-              <div class="form-hint">💡 Enter main domain only, e.g., amazon.com, ebay.com</div>
-              <div class="custom-platform-actions">
-                <button class="btn btn-secondary btn-small" id="cancel-custom-platform">Cancel</button>
-                <button class="btn btn-primary btn-small" id="save-custom-platform">Add</button>
+          <!-- Tab 1: Platform Configuration -->
+          <div id="tab-platform" class="tab-content active">
+            <div class="form-group">
+              <label class="form-label">📍 Platform Configuration</label>
+              <div class="platform-select-row">
+                <select class="form-select" id="platform-select">
+                  <option value="">-- Select Platform --</option>
+                </select>
+                <button class="btn btn-secondary btn-small" id="add-custom-platform-btn">+ Custom</button>
               </div>
-            </div>
-            <div id="platform-config-area" class="platform-config-area" style="display: none;">
-              <div class="platform-config-header">
-                <span id="platform-config-title">Platform Settings</span>
-                <button class="btn-delete-platform" id="delete-platform-btn" title="Delete this platform" style="display: none;">× Delete</button>
+              <div id="custom-platform-input" class="custom-platform-input" style="display: none;">
+                <input type="text" class="form-input" id="custom-platform-name" placeholder="Platform name, e.g., My Store">
+                <input type="text" class="form-input" id="custom-platform-domain" placeholder="Domain, e.g., mystore.com">
+                <div class="form-hint">💡 Enter main domain only, e.g., amazon.com, ebay.com</div>
+                <div class="custom-platform-actions">
+                  <button class="btn btn-secondary btn-small" id="cancel-custom-platform">Cancel</button>
+                  <button class="btn btn-primary btn-small" id="save-custom-platform">Add</button>
+                </div>
               </div>
-              <div class="form-group">
-                <label class="form-label">System Prompt</label>
-                <textarea class="form-textarea" id="platform-prompt" placeholder="Set AI role, tone, response rules..."></textarea>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Knowledge Base</label>
-                <textarea class="form-textarea" id="platform-knowledge" placeholder="Product info, pricing, FAQs..."></textarea>
+              <div id="platform-config-area" class="platform-config-area" style="display: none;">
+                <div class="platform-config-header">
+                  <span id="platform-config-title">Platform Settings</span>
+                  <button class="btn-delete-platform" id="delete-platform-btn" title="Delete this platform" style="display: none;">× Delete</button>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">System Prompt</label>
+                  <textarea class="form-textarea" id="platform-prompt" placeholder="Set AI role, tone, response rules..."></textarea>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Knowledge Base</label>
+                  <textarea class="form-textarea" id="platform-knowledge" placeholder="Product info, pricing, FAQs..."></textarea>
+                </div>
               </div>
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">🔌 API Configuration</label>
-            <div class="form-hint">Add multiple APIs. Auto-switch on failure.</div>
-            <div class="api-list" id="api-list"></div>
-            <button class="btn btn-secondary btn-small" id="add-api-btn">+ Add API</button>
+
+          <!-- Tab 2: AI Prompts -->
+          <div id="tab-ai-prompts" class="tab-content">
+            <div class="form-group">
+              <label class="form-label">📝 Translate & Polish Prompt</label>
+              <div class="form-hint">Used when you want to translate and polish your draft based on the original comment</div>
+              <textarea class="prompt-textarea" id="translate-prompt" rows="12" placeholder="Enter translate prompt..."></textarea>
+              <button class="btn btn-secondary btn-small reset-prompt-btn" data-target="translate">Reset to Default</button>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">✏️ Revise Prompt</label>
+              <div class="form-hint">Used when you want to revise the AI-generated reply</div>
+              <textarea class="prompt-textarea" id="revise-prompt" rows="10" placeholder="Enter revise prompt..."></textarea>
+              <button class="btn btn-secondary btn-small reset-prompt-btn" data-target="revise">Reset to Default</button>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">💬 Default Platform Prompt</label>
+              <div class="form-hint">Used when a platform has no custom prompt configured</div>
+              <textarea class="prompt-textarea" id="default-prompt" rows="8" placeholder="Enter default platform prompt..."></textarea>
+              <button class="btn btn-secondary btn-small reset-prompt-btn" data-target="default">Reset to Default</button>
+            </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">🎨 Theme</label>
-            <div class="theme-selector" id="theme-selector">
-              <label class="theme-option" data-theme="blue">
-                <input type="radio" name="theme" value="blue">
-                <span class="theme-preview theme-preview-blue"></span>
-                <span class="theme-name">🔵 默认蓝</span>
-              </label>
-              <label class="theme-option" data-theme="mono">
-                <input type="radio" name="theme" value="mono">
-                <span class="theme-preview theme-preview-mono"></span>
-                <span class="theme-name">⬛ 纯净黑白</span>
-              </label>
-              <label class="theme-option" data-theme="matcha">
-                <input type="radio" name="theme" value="matcha">
-                <span class="theme-preview theme-preview-matcha"></span>
-                <span class="theme-name">🍵 抹茶绿</span>
-              </label>
-              <label class="theme-option" data-theme="dark">
-                <input type="radio" name="theme" value="dark">
-                <span class="theme-preview theme-preview-dark"></span>
-                <span class="theme-name">🌙 深色模式</span>
-              </label>
+
+          <!-- Tab 3: API Configuration -->
+          <div id="tab-api" class="tab-content">
+            <div class="form-group">
+              <label class="form-label">🔌 API Configuration</label>
+              <div class="form-hint">Add multiple APIs. Auto-switch on failure.</div>
+              <div class="api-list" id="api-list"></div>
+              <button class="btn btn-secondary btn-small" id="add-api-btn">+ Add API</button>
+            </div>
+          </div>
+
+          <!-- Tab 4: Theme -->
+          <div id="tab-theme" class="tab-content">
+            <div class="form-group">
+              <label class="form-label">🎨 Theme</label>
+              <div class="theme-selector" id="theme-selector">
+                <label class="theme-option" data-theme="blue">
+                  <input type="radio" name="theme" value="blue">
+                  <span class="theme-preview theme-preview-blue"></span>
+                  <span class="theme-name">🔵 默认蓝</span>
+                </label>
+                <label class="theme-option" data-theme="mono">
+                  <input type="radio" name="theme" value="mono">
+                  <span class="theme-preview theme-preview-mono"></span>
+                  <span class="theme-name">⬛ 纯净黑白</span>
+                </label>
+                <label class="theme-option" data-theme="matcha">
+                  <input type="radio" name="theme" value="matcha">
+                  <span class="theme-preview theme-preview-matcha"></span>
+                  <span class="theme-name">🍵 抹茶绿</span>
+                </label>
+                <label class="theme-option" data-theme="dark">
+                  <input type="radio" name="theme" value="dark">
+                  <span class="theme-preview theme-preview-dark"></span>
+                  <span class="theme-name">🌙 深色模式</span>
+                </label>
+              </div>
             </div>
           </div>
         </div>
+
         <div class="settings-footer">
           <button class="btn btn-danger" id="settings-clear">🗑️ Clear All</button>
           <div style="flex: 1;"></div>
@@ -407,6 +453,29 @@ IMPORTANT REQUIREMENTS:
       </div>
     `;
     document.body.appendChild(overlay);
+
+    // Tab 切换事件
+    const tabButtons = overlay.querySelectorAll('.tab-button');
+    const tabContents = overlay.querySelectorAll('.tab-content');
+
+    tabButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const tabId = button.dataset.tab;
+
+        // 更新按钮状态
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+
+        // 更新内容显示
+        tabContents.forEach(content => {
+          content.classList.remove('active');
+          if (content.id === `tab-${tabId}`) {
+            content.classList.add('active');
+          }
+        });
+      });
+    });
+
     return overlay;
   }
 
@@ -1063,6 +1132,7 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     let tempApis = [];
     let tempPlatforms = {};  // 临时平台配置
     let tempCustomPlatforms = [];  // 临时自定义平台
+    let tempAiPrompts = {};  // 临时 AI Prompts 配置
     let currentPlatform = null;  // 当前匹配的平台
     let selectedPlatformId = null;  // 设置中选中的平台
     let currentTheme = 'blue';  // 当前主题
@@ -1141,21 +1211,34 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       tempApis = JSON.parse(JSON.stringify(config.apis));
       tempPlatforms = JSON.parse(JSON.stringify(config.platforms || {}));
       tempCustomPlatforms = JSON.parse(JSON.stringify(config.customPlatforms || []));
+
+      // AI Prompts 临时存储
+      tempAiPrompts = JSON.parse(JSON.stringify(config.aiPrompts || DEFAULT_CONFIG.aiPrompts));
+
       renderApiList(apiListEl, tempApis);
       renderPlatformSelect({ ...config, customPlatforms: tempCustomPlatforms });
-      
+
       // 重置平台配置区域
       platformSelect.value = '';
       platformConfigArea.style.display = 'none';
       customPlatformInput.style.display = 'none';
       selectedPlatformId = null;
-      
+
       // 设置当前主题选中状态
       const themeRadios = themeSelector.querySelectorAll('input[name="theme"]');
       themeRadios.forEach(radio => {
         radio.checked = radio.value === (config.theme || 'blue');
       });
-      
+
+      // 加载 AI Prompts
+      const translatePrompt = document.getElementById('translate-prompt');
+      const revisePrompt = document.getElementById('revise-prompt');
+      const defaultPrompt = document.getElementById('default-prompt');
+
+      if (translatePrompt) translatePrompt.value = tempAiPrompts.translate?.prompt || DEFAULT_TRANSLATE_PROMPT;
+      if (revisePrompt) revisePrompt.value = tempAiPrompts.revise?.prompt || DEFAULT_REVISE_PROMPT;
+      if (defaultPrompt) defaultPrompt.value = tempAiPrompts.defaultPlatform?.prompt || DEFAULT_PROMPT;
+
       settingsOverlay.style.display = 'flex';
     });
 
@@ -1201,6 +1284,53 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
         }
         tempPlatforms[selectedPlatformId].knowledge = platformKnowledge.value;
       }
+    });
+
+    // AI Prompts 输入变化时保存到临时对象
+    const translatePrompt = document.getElementById('translate-prompt');
+    const revisePrompt = document.getElementById('revise-prompt');
+    const defaultPrompt = document.getElementById('default-prompt');
+
+    if (translatePrompt) {
+      translatePrompt.addEventListener('input', () => {
+        if (!tempAiPrompts.translate) tempAiPrompts.translate = {};
+        tempAiPrompts.translate.prompt = translatePrompt.value;
+      });
+    }
+
+    if (revisePrompt) {
+      revisePrompt.addEventListener('input', () => {
+        if (!tempAiPrompts.revise) tempAiPrompts.revise = {};
+        tempAiPrompts.revise.prompt = revisePrompt.value;
+      });
+    }
+
+    if (defaultPrompt) {
+      defaultPrompt.addEventListener('input', () => {
+        if (!tempAiPrompts.defaultPlatform) tempAiPrompts.defaultPlatform = {};
+        tempAiPrompts.defaultPlatform.prompt = defaultPrompt.value;
+      });
+    }
+
+    // 重置按钮事件
+    const resetBtns = document.querySelectorAll('.reset-prompt-btn');
+    resetBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.target;
+        if (target === 'translate' && translatePrompt) {
+          translatePrompt.value = DEFAULT_TRANSLATE_PROMPT;
+          if (!tempAiPrompts.translate) tempAiPrompts.translate = {};
+          tempAiPrompts.translate.prompt = DEFAULT_TRANSLATE_PROMPT;
+        } else if (target === 'revise' && revisePrompt) {
+          revisePrompt.value = DEFAULT_REVISE_PROMPT;
+          if (!tempAiPrompts.revise) tempAiPrompts.revise = {};
+          tempAiPrompts.revise.prompt = DEFAULT_REVISE_PROMPT;
+        } else if (target === 'default' && defaultPrompt) {
+          defaultPrompt.value = DEFAULT_PROMPT;
+          if (!tempAiPrompts.defaultPlatform) tempAiPrompts.defaultPlatform = {};
+          tempAiPrompts.defaultPlatform.prompt = DEFAULT_PROMPT;
+        }
+      });
     });
 
     // 显示添加自定义平台输入框
@@ -1315,7 +1445,7 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
         showToast('Please complete at least one API (URL and Key)');
         return;
       }
-      
+
       let newActiveIndex = config.activeApiIndex;
       if (newActiveIndex >= validApis.length) {
         newActiveIndex = 0;
@@ -1329,9 +1459,13 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
         activeApiIndex: newActiveIndex,
         platforms: tempPlatforms,
         customPlatforms: tempCustomPlatforms,
-        theme: selectedTheme
+        aiPrompts: tempAiPrompts,
+        theme: selectedTheme,
+        panelPosition: config.panelPosition,
+        collapsedPosition: config.collapsedPosition,
+        version: '6.0.0'
       });
-      
+
       await refreshApiSelector();
       await refreshCurrentPlatform();
       Logger.info('Settings saved', { apiCount: validApis.length, platformCount: Object.keys(tempPlatforms).length, theme: selectedTheme });
