@@ -1303,17 +1303,145 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       }
     });
 
+    // ==================== 拖拽功能 ====================
+    let isDragging = false;
+    let startX, startY, initialX, initialY;
+    let currentPositionKey = 'panelPosition'; // 'panelPosition' or 'collapsedPosition'
+
+    // 初始化拖拽
+    function initDrag() {
+      const header = panel.querySelector('.panel-header');
+      header.style.cursor = 'move';
+
+      header.addEventListener('mousedown', startDrag);
+      document.addEventListener('mousemove', onDrag);
+      document.addEventListener('mouseup', stopDrag);
+    }
+
+    async function startDrag(e) {
+      // 只响应左键
+      if (e.button !== 0) return;
+
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = panel.getBoundingClientRect();
+      initialX = rect.left;
+      initialY = rect.top;
+
+      panel.style.position = 'fixed';
+      panel.style.zIndex = '10000';
+      panel.style.transition = 'none'; // 拖拽时禁用过渡
+
+      // 更新当前位置键
+      currentPositionKey = panel.classList.contains('collapsed') ? 'collapsedPosition' : 'panelPosition';
+
+      e.preventDefault();
+    }
+
+    function onDrag(e) {
+      if (!isDragging) return;
+
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      panel.style.left = `${initialX + dx}px`;
+      panel.style.top = `${initialY + dy}px`;
+      panel.style.right = 'auto'; // 清除原有的 right 定位
+    }
+
+    async function stopDrag() {
+      if (!isDragging) return;
+      isDragging = false;
+
+      // 保存位置
+      const config = await loadConfig();
+      const rect = panel.getBoundingClientRect();
+
+      config[currentPositionKey] = {
+        x: rect.left,
+        y: rect.top
+      };
+
+      await saveConfig(config);
+
+      Logger.info('Position saved', { positionKey: currentPositionKey, x: rect.left, y: rect.top });
+    }
+
+    // 恢复位置
+    async function restorePosition() {
+      const config = await loadConfig();
+      const positionKey = panel.classList.contains('collapsed') ? 'collapsedPosition' : 'panelPosition';
+      const savedPosition = config[positionKey];
+
+      if (savedPosition && savedPosition.x !== null && savedPosition.y !== null) {
+        panel.style.position = 'fixed';
+        panel.style.left = `${savedPosition.x}px`;
+        panel.style.top = `${savedPosition.y}px`;
+        panel.style.right = 'auto';
+
+        Logger.info('Position restored', { positionKey, x: savedPosition.x, y: savedPosition.y });
+      }
+    }
+
+    // 初始化拖拽功能
+    initDrag();
+
+    // 面板创建后恢复位置
+    await restorePosition();
+
     // 收起/展开
-    collapseBtn.addEventListener('click', (e) => {
+    collapseBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
+      const isCollapsing = !panel.classList.contains('collapsed');
       panel.classList.toggle('collapsed');
       collapseBtn.textContent = panel.classList.contains('collapsed') ? '' : '−';
+
+      // 切换状态时恢复对应的位置
+      if (isCollapsing) {
+        // 正在折叠 - 保存当前展开状态位置
+        const config = await loadConfig();
+        const rect = panel.getBoundingClientRect();
+        config.panelPosition = { x: rect.left, y: rect.top };
+        await saveConfig(config);
+
+        // 尝试恢复折叠状态位置
+        if (config.collapsedPosition && config.collapsedPosition.x !== null) {
+          panel.style.left = `${config.collapsedPosition.x}px`;
+          panel.style.top = `${config.collapsedPosition.y}px`;
+        }
+      } else {
+        // 正在展开 - 保存当前折叠状态位置
+        const config = await loadConfig();
+        const rect = panel.getBoundingClientRect();
+        config.collapsedPosition = { x: rect.left, y: rect.top };
+        await saveConfig(config);
+
+        // 尝试恢复展开状态位置
+        if (config.panelPosition && config.panelPosition.x !== null) {
+          panel.style.left = `${config.panelPosition.x}px`;
+          panel.style.top = `${config.panelPosition.y}px`;
+        }
+      }
     });
 
-    panel.addEventListener('click', () => {
+    panel.addEventListener('click', async () => {
       if (panel.classList.contains('collapsed')) {
+        // 保存折叠状态位置
+        const config = await loadConfig();
+        const rect = panel.getBoundingClientRect();
+        config.collapsedPosition = { x: rect.left, y: rect.top };
+        await saveConfig(config);
+
         panel.classList.remove('collapsed');
         collapseBtn.textContent = '−';
+
+        // 恢复展开状态位置
+        if (config.panelPosition && config.panelPosition.x !== null) {
+          panel.style.left = `${config.panelPosition.x}px`;
+          panel.style.top = `${config.panelPosition.y}px`;
+        }
       }
     });
 
