@@ -367,13 +367,63 @@ IMPORTANT REQUIREMENTS:
                   <span id="platform-config-title">Platform Settings</span>
                   <button class="btn-delete-platform" id="delete-platform-btn" title="Delete this platform" style="display: none;">× Delete</button>
                 </div>
+
+                <!-- System Prompt with Reuse Selector -->
                 <div class="form-group">
                   <label class="form-label">System Prompt</label>
+
+                  <!-- Reuse Selector -->
+                  <div class="reuse-selector">
+                    <label class="reuse-option">
+                      <input type="radio" name="prompt-reuse" value="custom" checked>
+                      <span>Use custom prompt</span>
+                    </label>
+                    <label class="reuse-option">
+                      <input type="radio" name="prompt-reuse" value="reuse">
+                      <span>Reuse from:</span>
+                      <select class="reuse-select" id="prompt-reuse-select">
+                        <option value="">Select platform...</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <!-- Custom Prompt Input -->
                   <textarea class="form-textarea" id="platform-prompt" placeholder="Set AI role, tone, response rules..."></textarea>
+
+                  <!-- Reused Content Display (Read-only) -->
+                  <div id="prompt-reused-display" class="prompt-reused" style="display: none;">
+                    <div class="prompt-reused-label">Reused from: <span id="prompt-reused-source"></span></div>
+                    <div class="prompt-reused-content" id="prompt-reused-content"></div>
+                  </div>
                 </div>
+
+                <!-- Knowledge Base with Reuse Selector -->
                 <div class="form-group">
                   <label class="form-label">Knowledge Base</label>
+
+                  <!-- Reuse Selector -->
+                  <div class="reuse-selector">
+                    <label class="reuse-option">
+                      <input type="radio" name="knowledge-reuse" value="custom" checked>
+                      <span>Use custom knowledge</span>
+                    </label>
+                    <label class="reuse-option">
+                      <input type="radio" name="knowledge-reuse" value="reuse">
+                      <span>Reuse from:</span>
+                      <select class="reuse-select" id="knowledge-reuse-select">
+                        <option value="">Select platform...</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <!-- Custom Knowledge Input -->
                   <textarea class="form-textarea" id="platform-knowledge" placeholder="Product info, pricing, FAQs..."></textarea>
+
+                  <!-- Reused Content Display (Read-only) -->
+                  <div id="knowledge-reused-display" class="prompt-reused" style="display: none;">
+                    <div class="prompt-reused-label">Reused from: <span id="knowledge-reused-source"></span></div>
+                    <div class="prompt-reused-content" id="knowledge-reused-content"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1159,6 +1209,20 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     const deletePlatformBtn = document.getElementById('delete-platform-btn');
     const platformPrompt = document.getElementById('platform-prompt');
     const platformKnowledge = document.getElementById('platform-knowledge');
+
+    // 复用选择器元素
+    const promptReuseRadios = document.querySelectorAll('input[name="prompt-reuse"]');
+    const promptReuseSelect = document.getElementById('prompt-reuse-select');
+    const promptReusedDisplay = document.getElementById('prompt-reused-display');
+    const promptReusedSource = document.getElementById('prompt-reused-source');
+    const promptReusedContent = document.getElementById('prompt-reused-content');
+
+    const knowledgeReuseRadios = document.querySelectorAll('input[name="knowledge-reuse"]');
+    const knowledgeReuseSelect = document.getElementById('knowledge-reuse-select');
+    const knowledgeReusedDisplay = document.getElementById('knowledge-reused-display');
+    const knowledgeReusedSource = document.getElementById('knowledge-reused-source');
+    const knowledgeReusedContent = document.getElementById('knowledge-reused-content');
+
     const currentPlatformEl = document.getElementById('current-platform');
 
     // 日志面板元素
@@ -1298,20 +1362,69 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
         selectedPlatformId = null;
         return;
       }
-      
+
       selectedPlatformId = platformId;
       const allPlatforms = [...PRESET_PLATFORMS, ...tempCustomPlatforms];
       const platform = allPlatforms.find(p => p.id === platformId);
       const platformConf = tempPlatforms[platformId] || { prompt: DEFAULT_PROMPT, knowledge: '' };
-      
+
       platformConfigTitle.textContent = platform ? platform.name : 'Platform Settings';
       platformPrompt.value = platformConf.prompt || DEFAULT_PROMPT;
       platformKnowledge.value = platformConf.knowledge || '';
-      
+
+      // 填充复用选择器选项
+      populateReuseSelects(platformId);
+
+      // 加载 Prompt 复用配置
+      const promptReuse = platformConf.promptReuse;
+      if (promptReuse) {
+        // 选择"Reuse from"选项
+        promptReuseRadios.forEach(r => {
+          r.checked = (r.value === 'reuse');
+        });
+        // 设置复用平台并显示下拉框
+        promptReuseSelect.value = promptReuse;
+        promptReuseSelect.style.display = 'inline-block';
+        platformPrompt.style.display = 'none';
+        updatePromptReusedDisplay();
+      } else {
+        // 选择"Use custom"选项
+        promptReuseRadios.forEach(r => {
+          r.checked = (r.value === 'custom');
+        });
+        promptReuseSelect.style.display = 'none';
+        promptReuseSelect.value = '';
+        platformPrompt.style.display = 'block';
+        promptReusedDisplay.style.display = 'none';
+      }
+
+      // 加载 Knowledge 复用配置
+      const knowledgeReuse = platformConf.knowledgeReuse;
+      if (knowledgeReuse) {
+        // 选择"Reuse from"选项
+        knowledgeReuseRadios.forEach(r => {
+          r.checked = (r.value === 'reuse');
+        });
+        // 设置复用平台并显示下拉框
+        knowledgeReuseSelect.value = knowledgeReuse;
+        knowledgeReuseSelect.style.display = 'inline-block';
+        platformKnowledge.style.display = 'none';
+        updateKnowledgeReusedDisplay();
+      } else {
+        // 选择"Use custom"选项
+        knowledgeReuseRadios.forEach(r => {
+          r.checked = (r.value === 'custom');
+        });
+        knowledgeReuseSelect.style.display = 'none';
+        knowledgeReuseSelect.value = '';
+        platformKnowledge.style.display = 'block';
+        knowledgeReusedDisplay.style.display = 'none';
+      }
+
       // 只有自定义平台才能删除
       const isCustom = tempCustomPlatforms.some(p => p.id === platformId);
       deletePlatformBtn.style.display = isCustom ? 'inline-block' : 'none';
-      
+
       platformConfigArea.style.display = 'block';
     });
 
@@ -1333,6 +1446,164 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
         tempPlatforms[selectedPlatformId].knowledge = platformKnowledge.value;
       }
     });
+
+    // ==================== 复用选择器事件处理 ====================
+
+    // Prompt 复用切换
+    promptReuseRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        const isReuse = radio.value === 'reuse';
+
+        // 更新 UI 状态
+        platformPrompt.style.display = isReuse ? 'none' : 'block';
+        promptReuseSelect.style.display = isReuse ? 'inline-block' : 'none';
+
+        if (isReuse && promptReuseSelect.value) {
+          updatePromptReusedDisplay();
+        } else {
+          promptReusedDisplay.style.display = 'none';
+        }
+
+        // 保存到临时配置
+        if (selectedPlatformId) {
+          if (!tempPlatforms[selectedPlatformId]) {
+            tempPlatforms[selectedPlatformId] = { prompt: '', knowledge: '' };
+          }
+          tempPlatforms[selectedPlatformId].promptReuse = isReuse ? promptReuseSelect.value : null;
+        }
+      });
+    });
+
+    // Prompt 复用选择器变化
+    promptReuseSelect.addEventListener('change', () => {
+      updatePromptReusedDisplay();
+
+      // 保存到临时配置
+      if (selectedPlatformId) {
+        if (!tempPlatforms[selectedPlatformId]) {
+          tempPlatforms[selectedPlatformId] = { prompt: '', knowledge: '' };
+        }
+        tempPlatforms[selectedPlatformId].promptReuse = promptReuseSelect.value;
+      }
+    });
+
+    // Knowledge 复用切换
+    knowledgeReuseRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        const isReuse = radio.value === 'reuse';
+
+        // 更新 UI 状态
+        platformKnowledge.style.display = isReuse ? 'none' : 'block';
+        knowledgeReuseSelect.style.display = isReuse ? 'inline-block' : 'none';
+
+        if (isReuse && knowledgeReuseSelect.value) {
+          updateKnowledgeReusedDisplay();
+        } else {
+          knowledgeReusedDisplay.style.display = 'none';
+        }
+
+        // 保存到临时配置
+        if (selectedPlatformId) {
+          if (!tempPlatforms[selectedPlatformId]) {
+            tempPlatforms[selectedPlatformId] = { prompt: '', knowledge: '' };
+          }
+          tempPlatforms[selectedPlatformId].knowledgeReuse = isReuse ? knowledgeReuseSelect.value : null;
+        }
+      });
+    });
+
+    // Knowledge 复用选择器变化
+    knowledgeReuseSelect.addEventListener('change', () => {
+      updateKnowledgeReusedDisplay();
+
+      // 保存到临时配置
+      if (selectedPlatformId) {
+        if (!tempPlatforms[selectedPlatformId]) {
+          tempPlatforms[selectedPlatformId] = { prompt: '', knowledge: '' };
+        }
+        tempPlatforms[selectedPlatformId].knowledgeReuse = knowledgeReuseSelect.value;
+      }
+    });
+
+    // 更新 Prompt 复用显示
+    function updatePromptReusedDisplay() {
+      const reusedPlatformId = promptReuseSelect.value;
+      if (!reusedPlatformId) {
+        promptReusedDisplay.style.display = 'none';
+        return;
+      }
+
+      const reusedPrompt = getPlatformPromptFromTemp(reusedPlatformId);
+      if (reusedPrompt) {
+        const allPlatforms = [...PRESET_PLATFORMS, ...tempCustomPlatforms];
+        const platform = allPlatforms.find(p => p.id === reusedPlatformId);
+
+        promptReusedSource.textContent = platform ? platform.name : reusedPlatformId;
+        promptReusedContent.textContent = reusedPrompt.length > 200
+          ? reusedPrompt.substring(0, 200) + '...'
+          : reusedPrompt;
+        promptReusedDisplay.style.display = 'block';
+      }
+    }
+
+    // 更新 Knowledge 复用显示
+    function updateKnowledgeReusedDisplay() {
+      const reusedPlatformId = knowledgeReuseSelect.value;
+      if (!reusedPlatformId) {
+        knowledgeReusedDisplay.style.display = 'none';
+        return;
+      }
+
+      const reusedKnowledge = getPlatformKnowledgeFromTemp(reusedPlatformId);
+      if (reusedKnowledge) {
+        const allPlatforms = [...PRESET_PLATFORMS, ...tempCustomPlatforms];
+        const platform = allPlatforms.find(p => p.id === reusedPlatformId);
+
+        knowledgeReusedSource.textContent = platform ? platform.name : reusedPlatformId;
+        knowledgeReusedContent.textContent = reusedKnowledge.length > 200
+          ? reusedKnowledge.substring(0, 200) + '...'
+          : reusedKnowledge;
+        knowledgeReusedDisplay.style.display = 'block';
+      }
+    }
+
+    // 从临时配置获取平台 Prompt
+    function getPlatformPromptFromTemp(platformId) {
+      const platformConf = tempPlatforms[platformId];
+
+      // 如果配置了复用
+      if (platformConf?.promptReuse) {
+        return getPlatformPromptFromTemp(platformConf.promptReuse);
+      }
+
+      // 返回自定义 prompt 或默认值
+      return platformConf?.prompt || DEFAULT_PROMPT;
+    }
+
+    // 从临时配置获取平台 Knowledge
+    function getPlatformKnowledgeFromTemp(platformId) {
+      const platformConf = tempPlatforms[platformId];
+
+      // 如果配置了复用
+      if (platformConf?.knowledgeReuse) {
+        return getPlatformKnowledgeFromTemp(platformConf.knowledgeReuse);
+      }
+
+      // 返回自定义 knowledge 或空字符串
+      return platformConf?.knowledge || '';
+    }
+
+    // 填充复用选择器选项（排除当前平台）
+    function populateReuseSelects(currentPlatformId) {
+      const allPlatforms = [...PRESET_PLATFORMS, ...tempCustomPlatforms];
+      const otherPlatforms = allPlatforms.filter(p => p.id !== currentPlatformId);
+
+      const optionsHtml = '<option value="">Select platform...</option>' +
+        otherPlatforms.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+
+      promptReuseSelect.innerHTML = optionsHtml;
+      knowledgeReuseSelect.innerHTML = optionsHtml;
+    }
 
     // AI Prompts 输入变化时保存到临时对象
     const translatePrompt = document.getElementById('translate-prompt');
