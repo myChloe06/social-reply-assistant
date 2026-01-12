@@ -1445,48 +1445,59 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     collapseBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
 
-      // 添加过渡效果使切换更平滑
-      panel.style.transition = 'all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-
       const isCollapsing = !panel.classList.contains('collapsed');
-      const rect = panel.getBoundingClientRect();
 
-      // 切换状态
+      // 第一步：获取当前状态的位置（动画变化前）
+      const rect = panel.getBoundingClientRect();
+      const currentX = rect.left;
+      const currentY = rect.top;
+
+      // 第二步：切换 collapsed 类
       panel.classList.toggle('collapsed');
       collapseBtn.textContent = panel.classList.contains('collapsed') ? '' : '−';
 
-      // 保存当前状态的位置
+      // 第三步：立即设置回原来的位置（原地展开/折叠）
+      panel.style.left = `${currentX}px`;
+      panel.style.top = `${currentY}px`;
+
+      // 第四步：保存位置到配置
       const config = await loadConfig();
       const winWidth = window.innerWidth;
       const winHeight = window.innerHeight;
 
       if (isCollapsing) {
         // 折叠：保存展开状态位置
-        let savedX = Math.max(0, Math.min(rect.left, winWidth - rect.width));
-        let savedY = Math.max(0, Math.min(rect.top, winHeight - rect.height));
+        let savedX = Math.max(0, Math.min(currentX, winWidth - rect.width));
+        let savedY = Math.max(0, Math.min(currentY, winHeight - rect.height));
         config.panelPosition = { x: savedX, y: savedY };
       } else {
         // 展开：保存折叠状态位置
-        let savedX = Math.max(0, Math.min(rect.left, winWidth - rect.width));
-        let savedY = Math.max(0, Math.min(rect.top, winHeight - rect.height));
+        let savedX = Math.max(0, Math.min(currentX, winWidth - rect.width));
+        let savedY = Math.max(0, Math.min(currentY, winHeight - rect.height));
         config.collapsedPosition = { x: savedX, y: savedY };
       }
-
       await saveConfig(config);
 
-      // 等待 DOM 更新后进行边界校正（保持在当前位置）
-      await new Promise(resolve => setTimeout(resolve, 0));
-      const newRect = panel.getBoundingClientRect();
-      let correctedX = Math.max(0, Math.min(newRect.left, winWidth - newRect.width));
-      let correctedY = Math.max(0, Math.min(newRect.top, winHeight - newRect.height));
+      // 第五步：边界校正（基于新的面板尺寸）
+      // 使用 requestAnimationFrame 确保 DOM 已更新
+      requestAnimationFrame(() => {
+        const newRect = panel.getBoundingClientRect();
+        const winWidth = window.innerWidth;
+        const winHeight = window.innerHeight;
 
-      panel.style.left = `${correctedX}px`;
-      panel.style.top = `${correctedY}px`;
+        let correctedX = Math.max(0, Math.min(newRect.left, winWidth - newRect.width));
+        let correctedY = Math.max(0, Math.min(newRect.top, winHeight - newRect.height));
 
-      // 动画完成后清除过渡
-      setTimeout(() => {
-        panel.style.transition = '';
-      }, 300);
+        // 添加平滑过渡效果
+        panel.style.transition = 'left 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), top 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+        panel.style.left = `${correctedX}px`;
+        panel.style.top = `${correctedY}px`;
+
+        // 动画完成后清除过渡
+        setTimeout(() => {
+          panel.style.transition = '';
+        }, 300);
+      });
     });
 
     // 点击面板展开（仅限最小化状态）
@@ -1498,37 +1509,47 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       }
 
       if (panel.classList.contains('collapsed')) {
-        // 添加过渡效果
-        panel.style.transition = 'all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-
+        // 第一步：获取当前折叠状态的位置
         const rect = panel.getBoundingClientRect();
-        const config = await loadConfig();
-        const winWidth = window.innerWidth;
-        const winHeight = window.innerHeight;
+        const currentX = rect.left;
+        const currentY = rect.top;
 
-        // 保存折叠状态位置
-        let savedX = Math.max(0, Math.min(rect.left, winWidth - rect.width));
-        let savedY = Math.max(0, Math.min(rect.top, winHeight - rect.height));
-        config.collapsedPosition = { x: savedX, y: savedY };
-        await saveConfig(config);
-
-        // 就地展开（保持当前位置）
+        // 第二步：就地展开
         panel.classList.remove('collapsed');
         collapseBtn.textContent = '−';
 
-        // 等待 DOM 更新后进行边界校正
-        await new Promise(resolve => setTimeout(resolve, 0));
-        const newRect = panel.getBoundingClientRect();
-        let correctedX = Math.max(0, Math.min(newRect.left, winWidth - newRect.width));
-        let correctedY = Math.max(0, Math.min(newRect.top, winHeight - newRect.height));
+        // 第三步：立即设置回原来的位置
+        panel.style.left = `${currentX}px`;
+        panel.style.top = `${currentY}px`;
 
-        panel.style.left = `${correctedX}px`;
-        panel.style.top = `${correctedY}px`;
+        // 第四步：保存位置
+        const config = await loadConfig();
+        const winWidth = window.innerWidth;
+        const winHeight = window.innerHeight;
+        let savedX = Math.max(0, Math.min(currentX, winWidth - rect.width));
+        let savedY = Math.max(0, Math.min(currentY, winHeight - rect.height));
+        config.collapsedPosition = { x: savedX, y: savedY };
+        await saveConfig(config);
 
-        // 动画完成后清除过渡
-        setTimeout(() => {
-          panel.style.transition = '';
-        }, 300);
+        // 第五步：边界校正
+        requestAnimationFrame(() => {
+          const newRect = panel.getBoundingClientRect();
+          const winWidth = window.innerWidth;
+          const winHeight = window.innerHeight;
+
+          let correctedX = Math.max(0, Math.min(newRect.left, winWidth - newRect.width));
+          let correctedY = Math.max(0, Math.min(newRect.top, winHeight - newRect.height));
+
+          // 添加平滑过渡效果
+          panel.style.transition = 'left 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), top 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+          panel.style.left = `${correctedX}px`;
+          panel.style.top = `${correctedY}px`;
+
+          // 动画完成后清除过渡
+          setTimeout(() => {
+            panel.style.transition = '';
+          }, 300);
+        });
       }
     });
 
