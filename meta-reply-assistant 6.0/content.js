@@ -1305,6 +1305,7 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
 
     // ==================== 拖拽功能 ====================
     let isDragging = false;
+    let hasActuallyDragged = false; // 区分点击和拖拽
     let startX, startY, initialX, initialY;
     let currentPositionKey = 'panelPosition'; // 'panelPosition' or 'collapsedPosition'
 
@@ -1323,6 +1324,7 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       if (e.button !== 0) return;
 
       isDragging = true;
+      hasActuallyDragged = false; // 重置拖拽标志
       startX = e.clientX;
       startY = e.clientY;
 
@@ -1346,7 +1348,12 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
 
-      // 计算新位置
+      // 如果移动超过 3 像素，认为是真正的拖拽
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        hasActuallyDragged = true;
+      }
+
+      // 计算新位置（允许超出边界用于回弹效果）
       let newX = initialX + dx;
       let newY = initialY + dy;
 
@@ -1357,9 +1364,10 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       const panelWidth = panelRect.width;
       const panelHeight = panelRect.height;
 
-      // 边界限制：确保面板不会拖出窗口
-      newX = Math.max(0, Math.min(newX, winWidth - panelWidth));
-      newY = Math.max(0, Math.min(newY, winHeight - panelHeight));
+      // 边界限制（加一点回弹余量）
+      const bounce = 20; // 回弹余量像素
+      newX = Math.max(-bounce, Math.min(newX, winWidth - panelWidth + bounce));
+      newY = Math.max(-bounce, Math.min(newY, winHeight - panelHeight + bounce));
 
       panel.style.left = `${newX}px`;
       panel.style.top = `${newY}px`;
@@ -1370,18 +1378,32 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       if (!isDragging) return;
       isDragging = false;
 
-      // 保存位置
+      // 恢复过渡效果用于回弹动画
+      panel.style.transition = 'left 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), top 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+
       const config = await loadConfig();
       const rect = panel.getBoundingClientRect();
+      const winWidth = window.innerWidth;
+      const winHeight = window.innerHeight;
 
-      config[currentPositionKey] = {
-        x: rect.left,
-        y: rect.top
-      };
+      // 计算回弹后的最终位置（严格限制在边界内）
+      let finalX = Math.max(0, Math.min(rect.left, winWidth - rect.width));
+      let finalY = Math.max(0, Math.min(rect.top, winHeight - rect.height));
 
+      // 应用最终位置（触发回弹动画）
+      panel.style.left = `${finalX}px`;
+      panel.style.top = `${finalY}px`;
+
+      // 保存位置
+      config[currentPositionKey] = { x: finalX, y: finalY };
       await saveConfig(config);
 
-      Logger.info('Position saved', { positionKey: currentPositionKey, x: rect.left, y: rect.top });
+      Logger.info('Position saved', { positionKey: currentPositionKey, x: finalX, y: finalY });
+
+      // 等待动画完成后清除过渡（防止影响其他操作）
+      setTimeout(() => {
+        panel.style.transition = '';
+      }, 300);
     }
 
     // 恢复位置
@@ -1455,6 +1477,12 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
     });
 
     panel.addEventListener('click', async () => {
+      // 如果刚刚发生了拖拽，不触发点击展开
+      if (hasActuallyDragged) {
+        hasActuallyDragged = false;
+        return;
+      }
+
       if (panel.classList.contains('collapsed')) {
         // 保存折叠状态位置
         const config = await loadConfig();
