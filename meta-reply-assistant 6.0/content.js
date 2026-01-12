@@ -1346,8 +1346,23 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
 
-      panel.style.left = `${initialX + dx}px`;
-      panel.style.top = `${initialY + dy}px`;
+      // 计算新位置
+      let newX = initialX + dx;
+      let newY = initialY + dy;
+
+      // 获取窗口和面板尺寸
+      const winWidth = window.innerWidth;
+      const winHeight = window.innerHeight;
+      const panelRect = panel.getBoundingClientRect();
+      const panelWidth = panelRect.width;
+      const panelHeight = panelRect.height;
+
+      // 边界限制：确保面板不会拖出窗口
+      newX = Math.max(0, Math.min(newX, winWidth - panelWidth));
+      newY = Math.max(0, Math.min(newY, winHeight - panelHeight));
+
+      panel.style.left = `${newX}px`;
+      panel.style.top = `${newY}px`;
       panel.style.right = 'auto'; // 清除原有的 right 定位
     }
 
@@ -1376,12 +1391,25 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
       const savedPosition = config[positionKey];
 
       if (savedPosition && savedPosition.x !== null && savedPosition.y !== null) {
+        const winWidth = window.innerWidth;
+        const winHeight = window.innerHeight;
+
+        // 先应用位置以获取面板尺寸
         panel.style.position = 'fixed';
         panel.style.left = `${savedPosition.x}px`;
         panel.style.top = `${savedPosition.y}px`;
         panel.style.right = 'auto';
 
-        Logger.info('Position restored', { positionKey, x: savedPosition.x, y: savedPosition.y });
+        // 获取面板尺寸并校正边界
+        const panelRect = panel.getBoundingClientRect();
+        let x = Math.max(0, Math.min(savedPosition.x, winWidth - panelRect.width));
+        let y = Math.max(0, Math.min(savedPosition.y, winHeight - panelRect.height));
+
+        // 应用校正后的位置
+        panel.style.left = `${x}px`;
+        panel.style.top = `${y}px`;
+
+        Logger.info('Position restored', { positionKey, x, y, original: savedPosition });
       }
     }
 
