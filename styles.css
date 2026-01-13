@@ -891,6 +891,7 @@
 .settings-overlay[data-theme="blue"] {
   --theme-primary: #1877f2;
   --theme-primary-hover: #166fe5;
+  --theme-primary-alpha: rgba(24, 119, 242, 0.1);
   --theme-header-bg: linear-gradient(135deg, #4F9FFF, #1877F2);
   --theme-header-text: #ffffff;
   --theme-bg: #ffffff;
@@ -899,6 +900,7 @@
   --theme-border: #e4e6eb;
   --theme-input-bg: #ffffff;
   --theme-section-bg: #f0f2f5;
+  --theme-hover-bg: #eef0f3;
   --theme-collapsed-bg: linear-gradient(135deg, #4F9FFF, #1877F2);
 }
 
@@ -908,6 +910,7 @@
 .settings-overlay[data-theme="mono"] {
   --theme-primary: #1c1e21;
   --theme-primary-hover: #000000;
+  --theme-primary-alpha: rgba(28, 30, 33, 0.1);
   --theme-header-bg: #1c1e21;
   --theme-header-text: #ffffff;
   --theme-bg: #ffffff;
@@ -916,6 +919,7 @@
   --theme-border: #e4e6eb;
   --theme-input-bg: #ffffff;
   --theme-section-bg: #f5f5f5;
+  --theme-hover-bg: #ebebeb;
   --theme-collapsed-bg: #1c1e21;
 }
 
@@ -925,6 +929,7 @@
 .settings-overlay[data-theme="matcha"] {
   --theme-primary: #7cb342;
   --theme-primary-hover: #689f38;
+  --theme-primary-alpha: rgba(124, 179, 66, 0.1);
   --theme-header-bg: linear-gradient(135deg, #8bc34a, #689f38);
   --theme-header-text: #ffffff;
   --theme-bg: #ffffff;
@@ -933,6 +938,7 @@
   --theme-border: #c5e1a5;
   --theme-input-bg: #ffffff;
   --theme-section-bg: #f1f8e9;
+  --theme-hover-bg: #dcedc8;
   --theme-collapsed-bg: linear-gradient(135deg, #8bc34a, #689f38);
 }
 
@@ -942,6 +948,7 @@
 .settings-overlay[data-theme="dark"] {
   --theme-primary: #4dabf7;
   --theme-primary-hover: #339af0;
+  --theme-primary-alpha: rgba(77, 171, 247, 0.1);
   --theme-header-bg: #2d2d2d;
   --theme-header-text: #ffffff;
   --theme-bg: #1a1a1a;
@@ -950,6 +957,7 @@
   --theme-border: #404040;
   --theme-input-bg: #2d2d2d;
   --theme-section-bg: #252525;
+  --theme-hover-bg: #2f2f2f;
   --theme-collapsed-bg: #2d2d2d;
 }
 
@@ -1113,4 +1121,225 @@
 
 .settings-overlay[data-theme] .theme-name {
   color: var(--theme-text);
+}
+
+/* ==================== Tab Navigation ==================== */
+.settings-tabs {
+  display: flex;
+  border-bottom: 1px solid #e4e6eb;
+  padding: 0 20px;
+  margin-bottom: 20px;
+  background: #f7f8fa;
+}
+
+.tab-button {
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: #65676b;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.tab-button:hover {
+  color: #1877f2;
+}
+
+.tab-button.active {
+  color: #1877f2;
+  border-bottom-color: #1877f2;
+  font-weight: 600;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* ==================== Prompt Textarea ==================== */
+.prompt-textarea {
+  width: 100%;
+  min-height: 150px;
+  padding: 12px;
+  border: 1px solid #e4e6eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1c1e21;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.prompt-textarea:focus {
+  outline: none;
+  border-color: #1877f2;
+  box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.1);
+}
+
+/* ==================== Reuse Selector ==================== */
+.reuse-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.reuse-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f7f8fa;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.reuse-option:hover {
+  background: #eef0f3;
+}
+
+.reuse-option input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.reuse-option span {
+  font-size: 13px;
+  color: #1c1e21;
+}
+
+.reuse-select {
+  flex: 1;
+  max-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid #e4e6eb;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1c1e21;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.reuse-select:focus {
+  outline: none;
+  border-color: #1877f2;
+}
+
+/* ==================== Prompt Reused Display ==================== */
+.prompt-reused {
+  background: #f7f8fa;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 3px solid #1877f2;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.prompt-reused-label {
+  font-size: 11px;
+  color: #65676b;
+  margin-bottom: 6px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.prompt-reused-label span {
+  color: #1877f2;
+}
+
+.prompt-reused-content {
+  font-size: 13px;
+  color: #1c1e21;
+  line-height: 1.5;
+  max-height: 150px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-style: italic;
+  background: #ffffff;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid #e4e6eb;
+}
+
+/* ==================== Tab 主题适配 ==================== */
+.settings-overlay[data-theme] .settings-tabs {
+  background: var(--theme-section-bg);
+  border-color: var(--theme-border);
+}
+
+.settings-overlay[data-theme] .tab-button {
+  color: var(--theme-text-secondary);
+}
+
+.settings-overlay[data-theme] .tab-button:hover {
+  color: var(--theme-primary);
+}
+
+.settings-overlay[data-theme] .tab-button.active {
+  color: var(--theme-primary);
+  border-bottom-color: var(--theme-primary);
+}
+
+.settings-overlay[data-theme] .prompt-textarea {
+  background: var(--theme-input-bg);
+  color: var(--theme-text);
+  border-color: var(--theme-border);
+}
+
+.settings-overlay[data-theme] .prompt-textarea:focus {
+  border-color: var(--theme-primary);
+  box-shadow: 0 0 0 2px var(--theme-primary-alpha);
+}
+
+/* Reuse Selector Theme Adaptation */
+.settings-overlay[data-theme] .reuse-option {
+  background: var(--theme-section-bg);
+}
+
+.settings-overlay[data-theme] .reuse-option:hover {
+  background: var(--theme-hover-bg);
+}
+
+.settings-overlay[data-theme] .reuse-option span {
+  color: var(--theme-text);
+}
+
+.settings-overlay[data-theme] .reuse-select {
+  background: var(--theme-input-bg);
+  color: var(--theme-text);
+  border-color: var(--theme-border);
+}
+
+.settings-overlay[data-theme] .reuse-select:focus {
+  border-color: var(--theme-primary);
+}
+
+.settings-overlay[data-theme] .prompt-reused {
+  background: var(--theme-section-bg);
+  border-left-color: var(--theme-primary);
+}
+
+.settings-overlay[data-theme] .prompt-reused-label {
+  color: var(--theme-text-secondary);
+}
+
+.settings-overlay[data-theme] .prompt-reused-label span {
+  color: var(--theme-primary);
+}
+
+.settings-overlay[data-theme] .prompt-reused-content {
+  background: var(--theme-input-bg);
+  color: var(--theme-text);
+  border-color: var(--theme-border);
 }
