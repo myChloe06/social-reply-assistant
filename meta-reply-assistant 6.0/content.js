@@ -2131,6 +2131,7 @@ Important: For non-English/non-Chinese comments, you MUST use the three-part for
           revisionSection.style.display = 'block';
           revisionButtons.style.display = 'flex';
           revisionInput.value = '';
+          translateBtn.style.display = 'block';
         }, 500);
         
         Logger.info('Generation complete', { elapsed: elapsed + 's', usedApi: aiResponse.usedApi, platform: currentPlatform?.name });
